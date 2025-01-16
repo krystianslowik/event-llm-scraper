@@ -23,7 +23,6 @@ docker-compose.local.yml
 .docker/
 
 # Angular-specific
-angular.json
 src/environments/environment.ts
 src/environments/environment.*.ts
 .angular/
