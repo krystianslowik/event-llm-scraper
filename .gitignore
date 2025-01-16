@@ -1,11 +1,8 @@
 # General files and directories
 node_modules/
-dist/
-build/
 .DS_Store
 *.log
 *.env
-example.env
 *.temp
 tmp/
 *.pid
@@ -22,6 +19,8 @@ docker-compose.local.yml
 *.swp
 .docker/
 
+
+ollama/models
 # Angular-specific
 src/environments/environment.ts
 src/environments/environment.*.ts
@@ -29,30 +28,8 @@ src/environments/environment.*.ts
 .angular/cache/
 .angular-cli.json
 
-# Node.js-specific
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-package-lock.json
-yarn.lock
-
-# Ollama (if specific files/directories need ignoring, adjust)
-ollama/models/
-ollama/cache/
-*.bin
-
 # IDE/editor specific
 .vscode/
 .idea/
 *.sublime-workspace
 *.sublime-project
-
-# System-specific
-Thumbs.db
-.DS_Store
-desktop.ini
-
-# Others
-# Ignore any sensitive configuration or keys
-*.key
-*.crt
