@@ -10,10 +10,15 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@ai-sdk/openai": "^1.1.0",
     "axios": "^1.7.9",
     "cheerio": "^1.0.0",
     "cors": "^2.8.5",
     "express": "^4.21.2",
-    "playwright": "^1.49.1"
+    "llm-scraper": "^1.5.1",
+    "openai": "^4.80.0",
+    "playwright": "^1.49.1",
+    "string-similarity": "^4.0.4",
+    "zod": "^3.24.1"
   }
 }
