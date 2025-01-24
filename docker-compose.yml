@@ -32,16 +32,15 @@ services:
     networks:
       - shared_network
 
-  angular_ui:
+  ui_react:
     image: node:22
-    container_name: angular_ui
+    container_name: ui_react
     working_dir: /app
     volumes:
       - ./ui:/app
-      - /app/node_modules
     ports:
-      - "80:80"
-    command: [ "/bin/sh", "-c", "npm install && npm run start" ]
+      - "5173:5173"
+    command: [ "/bin/sh", "-c", "npm install && npm run dev" ]
     environment:
       - CHOKIDAR_USEPOLLING=true
     networks:

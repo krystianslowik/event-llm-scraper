@@ -3,11 +3,10 @@ const { chromium } = require("playwright");
 const axios = require("axios");
 const cheerio = require("cheerio");
 
-// Your OpenAI API key (example placeholder)
 const OPENAI_API_KEY = "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";
 
 async function scrapePage(url, retries = 3) {
-    const browser = await chromium.launch({
+    const browser = await chromium.launch({ // todo: remove other browsers
         args: ["--disable-http2"],
     });
     const context = await browser.newContext({
@@ -74,6 +73,7 @@ If you find any events, ensure the summary mentions:
 - "URL"
 - "Category" 
 If no events, state "No events found." No yapping. Make sure you extract ALL EVENTS. Do not skip any of it. As structured data (json), no markdown usage, no comments.
+Use German (Deutsch).
 Here's the text:
 ${chunk}
 `;
@@ -138,7 +138,7 @@ Extract event details from the summary below:
 - Category (e.g., local, education, etc.)
 
 If there are no events, return an empty "events": [] array. No yapping. Make sure you extract ALL EVENTS. Do not skip any of it.
-
+Use German (Deutsch).
 Source: ${sourceUrl}
 Summary:
 ${summarizedText}

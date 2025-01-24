@@ -33,3 +33,5 @@ src/environments/environment.*.ts
 .idea/
 *.sublime-workspace
 *.sublime-project
+
+/ui_old/*

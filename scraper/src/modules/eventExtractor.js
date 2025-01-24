@@ -1,11 +1,3 @@
-// we use the top-down approach to gather DOM blocks, but also merges of elements to avoid rate limiting
-// merging of smaller blocks into bigger ones (up to a certain combined size) before summarizing
-// this approach avoids hit rate limit (limits below), loosing context due to too long context window (ive observed gpt lose it >20k tokens / >80k chars)
-// Model	    RPM	 RPD	  TPM	      Batch Queue Limit
-// gpt-4o-mini	500	 10,000	  200,000	  2,000,000
-//
-// We keep the two-step approach: chunk -> summarize -> extract events, with fuzzy dedup.
-
 const { chromium } = require("playwright");
 const cheerio = require("cheerio");
 const OpenAI = require("openai");
@@ -14,13 +6,10 @@ const stringSimilarity = require("string-similarity");
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
-// thresholds for top-down extraction:
 const MIN_TEXT_LENGTH = 25;
 const MAX_TEXT_LENGTH = 4000;
-
-// maximum combined chunk size (characters) for merging small chunks.
 const MAX_COMBINED_SIZE = 4000;
-
+const CATEGORY_SET = "Familienleben, Aktivitäten, Veranstaltungen, Essen/Rezepte, Münsterland, Kultur/Lifestyle, Gesundheit, Reisen, Einkaufen, Gemeinschaft, Tipps & Ratgeber";
 async function scrapePage(url, retries = 3) {
     console.log(`[DEBUG] Starting to scrape page: ${url}`);
     const browser = await chromium.launch({ args: ["--disable-http2"] });
@@ -48,7 +37,7 @@ async function scrapePage(url, retries = 3) {
     }
 }
 
- // BFS from <body>. If a node is within [MIN_TEXT_LENGTH..MAX_TEXT_LENGTH], we accept it, else we traverse children. If it has < MIN_TEXT_LENGTH or 0 links, we skip it but still traverse its children.
+// BFS approach from <body> with min/max text length checks
 function gatherCandidateNodes($, root) {
     const queue = [root];
     const results = [];
@@ -62,7 +51,6 @@ function gatherCandidateNodes($, root) {
         const linkCount = el.find("a[href]").filter((_, a) => $(a).attr("href") !== "#").length;
         const length = text.length;
 
-        // skip or descend if too small or no links
         if (length < MIN_TEXT_LENGTH || linkCount === 0) {
             const children = el.children().get();
             queue.push(...children);
@@ -72,7 +60,6 @@ function gatherCandidateNodes($, root) {
         if (length <= MAX_TEXT_LENGTH) {
             results.push(node);
         } else {
-            // too big => traverse children
             const children = el.children().get();
             queue.push(...children);
         }
@@ -80,18 +67,34 @@ function gatherCandidateNodes($, root) {
     return results;
 }
 
+/**
+ * Try to convert any relative href into an absolute URL based on 'baseUrl'.
+ */
+function resolveHref(href, baseUrl) {
+    try {
+        return new URL(href, baseUrl).href;
+    } catch {
+        return href; // fallback
+    }
+}
 
- // DOM node to chunk text, including found links
-function nodeToChunk($, node) {
+/**
+ * DOM node -> chunk text, including found links (already resolved to absolute).
+ */
+function nodeToChunk($, node, baseUrl) {
     const el = $(node);
     const text = el.text().replace(/\s+/g, " ").trim();
     const links = [];
     el.find("a[href]").each((_, a) => {
-        const href = $(a).attr("href");
-        if (href && href !== "#") {
-            links.push(href);
+        const rawHref = $(a).attr("href");
+        if (rawHref && rawHref !== "#") {
+            // Convert to absolute
+            const fullUrl = resolveHref(rawHref, baseUrl);
+            links.push(fullUrl);
         }
     });
+
+    if (!text) return "";
     let chunkText = text;
     if (links.length) {
         chunkText += `\nLinks found:\n${links.join("\n")}`;
@@ -99,7 +102,6 @@ function nodeToChunk($, node) {
     return chunkText;
 }
 
-// smaller chunks to reduce total chunk count. If adding a chunk would exceed MAX_COMBINED_SIZE, we start a new combined chunk
 function combineSmallChunks(chunks, maxSize) {
     const combined = [];
     let current = "";
@@ -108,15 +110,11 @@ function combineSmallChunks(chunks, maxSize) {
     for (const c of chunks) {
         const cLength = c.length;
         if (!cLength) continue;
-        // if adding c surpasses the limit, push current and reset
         if (currentSize + cLength > maxSize) {
-            if (current.trim()) {
-                combined.push(current);
-            }
+            if (current.trim()) combined.push(current);
             current = c;
             currentSize = cLength;
         } else {
-            // else keepp merging
             if (!current) {
                 current = c;
                 currentSize = cLength;
@@ -126,14 +124,12 @@ function combineSmallChunks(chunks, maxSize) {
             }
         }
     }
-    if (current.trim()) {
-        combined.push(current);
-    }
+    if (current.trim()) combined.push(current);
     return combined;
 }
 
-// top->down DOM, then combine chunks
-function sanitizeAndChunkHtml(html) {
+// sanitize, gather candidate nodes, optionally merge small chunks
+function sanitizeAndChunkHtml(html, baseUrl, mergeChunks = true) {
     console.log(`[DEBUG] Sanitizing HTML content...`);
     const $ = cheerio.load(html);
     $("script, style, meta, link, nav, footer").remove();
@@ -147,8 +143,9 @@ function sanitizeAndChunkHtml(html) {
     const candidateNodes = gatherCandidateNodes($, bodyEl);
     console.log(`[DEBUG] Found ${candidateNodes.length} candidate nodes.`);
 
-    // each accepted node to chunk text
-    let chunks = candidateNodes.map((node) => nodeToChunk($, node)).filter(Boolean);
+    let chunks = candidateNodes
+        .map((node) => nodeToChunk($, node, baseUrl))
+        .filter(Boolean);
 
     if (!chunks.length) {
         const fallbackText = $.text().replace(/\s+/g, " ").trim();
@@ -161,9 +158,12 @@ function sanitizeAndChunkHtml(html) {
     console.log(`[DEBUG] Total text length across chunks: ${totalLength} characters.`);
     console.log(`[DEBUG] Average chunk length: ${avgLength} characters.`);
 
-    // smaller chunks into bigger ones (up to MAX_COMBINED_SIZE chars)
-    chunks = combineSmallChunks(chunks, MAX_COMBINED_SIZE);
-    console.log(`[DEBUG] After merging small chunks, we have ${chunks.length} combined chunks.`);
+    if (mergeChunks) {
+        chunks = combineSmallChunks(chunks, MAX_COMBINED_SIZE);
+        console.log(`[DEBUG] After merging small chunks, we have ${chunks.length} combined chunks.`);
+    } else {
+        console.log(`[DEBUG] Skipping chunk merging (mergeChunks=false). Chunk count: ${chunks.length}`);
+    }
 
     return chunks;
 }
@@ -179,7 +179,7 @@ If you find any events, ensure the summary mentions:
 - "Event Title"
 - "Short Description"
 - "URL" 
-- "Category"
+- "Category" - assign to one of following if possible: ${CATEGORY_SET}. If none category apply, use "Andere'
 - "Date" - convert to ISO 8601
 If no events, state "No events found.". Do not skip any event. Make sure all of them are taken from the text provided. No markdown. 
 Response in German.
@@ -203,7 +203,6 @@ ${chunk}
     }
 }
 
-// parse summary into events (1 chunk -> 1 array of events)
 async function extractEventsFromSummary(summarizedText, sourceUrl) {
     console.log(`[DEBUG] Extracting events from summary for ${sourceUrl}...`);
     const userPrompt = `
@@ -222,16 +221,14 @@ Structure it exactly as:
 }
 
 Extract EVERY event details from the summary below:
-- Title of the event
+- Title
 - Description
-- URL to the details
-- Category (e.g., local, education, etc.)
+- URL
+- Category
 - Date (any recognized date format)
+If there are no events, return {"events":[]}.
 
-If there are no events, return an empty "events": [] array.
-Make sure there's no unterminated json and answer contains just what I asked for. 
-Make sure ALL EVENTS are taken from the text provided.
-DO NOT BE LAZY. THIS IS IMPORTANT.
+Make sure there's no unterminated json, and answer only in the format requested.
 Source: ${sourceUrl}
 Summary:
 ${summarizedText}
@@ -252,6 +249,19 @@ ${summarizedText}
     }
 }
 
+/**
+ * Final pass: If LLM returns relative links, re-resolve them with baseUrl
+ */
+function ensureAbsoluteEventUrls(events, baseUrl) {
+    for (const ev of events) {
+        if (ev.url && !ev.url.startsWith("http")) {
+            try {
+                ev.url = new URL(ev.url, baseUrl).href;
+            } catch {}
+        }
+    }
+}
+
 function fuzzyDeduplicate(allEvents) {
     console.log(`[DEBUG] Starting fuzzy dedup. Total events before dedup: ${allEvents.length}`);
 
@@ -265,7 +275,6 @@ function fuzzyDeduplicate(allEvents) {
             const titleB = (existing.title || "").toLowerCase().trim();
             const dateB = (existing.date || "").toLowerCase().trim();
 
-            // if dates match, check the similarity of the titles
             if (dateA === dateB) {
                 const similarity = stringSimilarity.compareTwoStrings(titleA, titleB);
                 if (similarity > 0.3) {
@@ -291,17 +300,10 @@ function fuzzyDeduplicate(allEvents) {
     return deduped;
 }
 
-async function extractEventsFromUrl(url) {
-    console.log(`[DEBUG] Starting extraction for URL: ${url}`);
-    const rawHtml = await scrapePage(url);
-    console.log(`[DEBUG] Scraped HTML length: ${rawHtml.length}`);
-
-    let chunks = sanitizeAndChunkHtml(rawHtml);
-    console.log(`[DEBUG] Final chunk count: ${chunks.length}`);
-
-    // summarize each chunk
+async function runChunkFlow(chunks, baseUrl) {
+    console.log(`[DEBUG] Summarizing ${chunks.length} chunks...`);
     const summaryPromises = chunks.map((chunk, idx) =>
-        summarizeChunk(chunk, url, idx, chunks.length)
+        summarizeChunk(chunk, baseUrl, idx, chunks.length)
     );
     const summaries = await Promise.all(summaryPromises);
     console.log(`[DEBUG] Completed summarizing chunks.`);
@@ -314,11 +316,34 @@ async function extractEventsFromUrl(url) {
             continue;
         }
         console.log(`[DEBUG] Extracting events from chunk ${i + 1} summary...`);
-        const result = await extractEventsFromSummary(summary, url);
+        const result = await extractEventsFromSummary(summary, baseUrl);
         if (result && Array.isArray(result.events)) {
             allEvents.push(...result.events);
         }
     }
+    return allEvents;
+}
+
+async function extractEventsFromUrl(url) {
+    console.log(`[DEBUG] Starting extraction for URL: ${url}`);
+    const rawHtml = await scrapePage(url);
+    console.log(`[DEBUG] Scraped HTML length: ${rawHtml.length}`);
+
+    // First pass: Merged chunks
+    let chunks = sanitizeAndChunkHtml(rawHtml, url, true);
+    console.log(`[DEBUG] First pass chunk count: ${chunks.length}`);
+    let allEvents = await runChunkFlow(chunks, url);
+
+    // If no events, fallback with no merging
+    if (!allEvents.length) {
+        console.log(`[DEBUG] No events found in merged-chunks approach. Trying fallback no-merge...`);
+        const fallbackChunks = sanitizeAndChunkHtml(rawHtml, url, false);
+        console.log(`[DEBUG] Fallback chunk count: ${fallbackChunks.length}`);
+        allEvents = await runChunkFlow(fallbackChunks, url);
+    }
+
+    // ensure absolute if LLM returned a partial link
+    ensureAbsoluteEventUrls(allEvents, url);
 
     allEvents = fuzzyDeduplicate(allEvents);
     console.log(`[DEBUG] Final count of events after dedup: ${allEvents.length}`);
