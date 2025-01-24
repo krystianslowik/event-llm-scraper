@@ -180,7 +180,7 @@ If you find any events, ensure the summary mentions:
 - "Short Description"
 - "URL" 
 - "Category" - assign to one of following if possible: ${CATEGORY_SET}. If none category apply, use "Andere'
-- "Date" - convert to ISO 8601
+- "Date" - convert to ISO 8601. Only one date.
 If no events, state "No events found.". Do not skip any event. Make sure all of them are taken from the text provided. No markdown. 
 Response in German.
 DO NOT BE LAZY. THIS IS IMPORTANT.
