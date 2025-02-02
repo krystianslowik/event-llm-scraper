@@ -1,10 +1,29 @@
-FROM node:latest
+FROM node:20
 
 WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm install
-RUN npx playwright install
-RUN npx playwright install-deps
-COPY . .
+RUN apt-get update && \
+    apt-get install -y \
+    libnss3 \
+    libnspr4 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libpango-1.0-0 \
+    libcairo2 \
+    libasound2 \
+    libatspi2.0-0 \
+    libwayland-client0
 
-CMD ["node", "scraper.js"]
+COPY package*.json ./
+RUN npm install
+COPY . .
+RUN ls -la .
+
+CMD ["sh", "-c", "npx playwright install chromium && node src/server.js"]
