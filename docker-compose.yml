@@ -1,20 +1,38 @@
-version: "3.8"
 services:
-#  ollama:
-#    image: ollama/ollama:latest
-#    ports:
-#      - "11434:11434"
-#    volumes:
-#      - .:/code
-#      - ./ollama:/root/.ollama
-#    container_name: ollama
-#    tty: true
-#    environment:
-#      - OLLAMA_KEEP_ALIVE=24h
-#      - OLLAMA_HOST=0.0.0.0
-#    entrypoint: ["sh", "/root/.ollama/entrypoint.sh"]
-#    networks:
-#      - shared_network
+  #  ollama:
+  #    image: ollama/ollama:latest
+  #    ports:
+  #      - "11434:11434"
+  #    volumes:
+  #      - .:/code
+  #      - ./ollama:/root/.ollama
+  #    container_name: ollama
+  #    tty: true
+  #    environment:
+  #      - OLLAMA_KEEP_ALIVE=24h
+  #      - OLLAMA_HOST=0.0.0.0
+  #    entrypoint: ["sh", "/root/.ollama/entrypoint.sh"]
+  #    networks:
+  #      - shared_network
+
+  postgres:
+    image: postgres:16
+    container_name: scraper_db
+    environment:
+      POSTGRES_USER: ${PG_USER:-scraper}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-scraperpass}
+      POSTGRES_DB: ${PG_DATABASE:-eventsdb}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - shared_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-scraper} -d ${PG_DATABASE:-eventsdb}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   scraper:
     build: ./scraper
@@ -24,13 +42,21 @@ services:
     ports:
       - "3000:3000"
     environment:
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      PG_HOST: postgres
+      PG_DATABASE: ${PG_DATABASE}
+      PG_USER: ${PG_USER}
+      PG_PASSWORD: ${PG_PASSWORD}
+      PG_PORT: 5432
     working_dir: /app
-    command: [ "/bin/sh", "-c", "npm install && npx playwright install chromium && node src/server.js" ]
+    command: [ "/bin/sh", "-c", "npm install && npx playwright install chromium && npx knex migrate:latest && node src/server.js" ]
     restart: on-failure
     networks:
       - shared_network
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   ui_react:
     image: node:22
@@ -49,3 +75,6 @@ services:
 networks:
   shared_network:
     driver: bridge
+
+volumes:
+  postgres_data:
