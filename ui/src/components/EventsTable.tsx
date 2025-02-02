@@ -63,15 +63,18 @@ export function EventsTable({ events, sortConfig, onSort }: EventsTableProps) {
         <tbody className="divide-y divide-gray-100">
           {events.map((event, index) => {
             const date = new Date(event.date);
-            const formattedDate = date.toLocaleDateString('en-US', {
+            const formattedDate = new Date(event.date).toLocaleDateString('de-DE', {
               year: 'numeric',
               month: 'long',
               day: 'numeric',
             });
-            const formattedTime = date.toLocaleTimeString('en-US', {
+
+            const formattedTime = new Date(event.date).toLocaleTimeString('de-DE', {
               hour: '2-digit',
               minute: '2-digit',
+              hour12: false
             });
+
 
             return (
               <tr

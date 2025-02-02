@@ -7,15 +7,16 @@ interface EventCardProps {
 }
 
 export function EventCard({ event }: EventCardProps) {
-  const formattedDate = new Date(event.date).toLocaleDateString('en-US', {
+  const formattedDate = new Date(event.date).toLocaleDateString('de-DE', {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
   });
 
-  const formattedTime = new Date(event.date).toLocaleTimeString('en-US', {
+  const formattedTime = new Date(event.date).toLocaleTimeString('de-DE', {
     hour: '2-digit',
     minute: '2-digit',
+    hour12: false
   });
 
   return (
