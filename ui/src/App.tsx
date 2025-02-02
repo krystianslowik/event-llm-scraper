@@ -1,11 +1,14 @@
+// src/App.tsx
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import {Calendar, Sparkles, SearchX, RefreshCw, Tag, Globe} from 'lucide-react';
+import { Calendar, Sparkles, SearchX, RefreshCw, Tag } from 'lucide-react';
 import { URLInput } from './components/URLInput';
 import { EventCard } from './components/EventCard';
 import { EventsTable } from './components/EventsTable';
 import { Filters } from './components/Filters';
 import { URLStatus as URLStatusComponent } from './components/URLStatus';
 import { ViewSwitch } from './components/ViewSwitch';
+import { ExportCSVButton } from './components/ExportCSVButton';
 import type { Event, URLStatus, APIResponse } from './types';
 
 type SortConfig = {
@@ -21,6 +24,7 @@ export default function App() {
   const [urlStatuses, setUrlStatuses] = useState<URLStatus[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
+  // Changed from single source to multiple sources (array)
   const [selectedSources, setSelectedSources] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [sortConfig, setSortConfig] = useState<SortConfig>(null);
@@ -49,7 +53,7 @@ export default function App() {
         .flatMap((status) =>
             status.data!.map((event) => ({
               ...event,
-              source_url: status.url, // Ensure source_url is set from the status URL
+              source_url: status.url,
             }))
         );
   }, [urlStatuses]);
@@ -68,7 +72,7 @@ export default function App() {
       const matchesCategory =
           selectedCategory === '' || event.category === selectedCategory;
 
-      // If no source is selected, include all events; otherwise, filter by selected sources.
+      // If no sources are selected, include all events; otherwise filter by selected sources.
       const matchesSource =
           selectedSources.length === 0 || selectedSources.includes(event.source_url);
 
@@ -103,7 +107,6 @@ export default function App() {
   };
 
   const setupEventSource = (url: string) => {
-    // Clean up existing connection if any
     cleanupEventSource(url);
 
     const encodedUrl = encodeURIComponent(url);
@@ -117,7 +120,6 @@ export default function App() {
             const newStatuses = [...prev];
             const statusIndex = prev.findIndex((status) => status.url === url);
             if (statusIndex !== -1) {
-              // Map events with the correct source_url
               const eventsWithSource = updatedData.data.map((event) => ({
                 ...event,
                 source_url: url,
@@ -126,8 +128,6 @@ export default function App() {
                 url,
                 status: 'success',
                 data: eventsWithSource,
-                // When backend sends "fetched" the events are updated,
-                // otherwise (if still "cached") keep isCached true
                 isCached: updatedData.status === 'cached',
               };
             }
@@ -155,12 +155,10 @@ export default function App() {
   };
 
   const handleSubmit = async (urls: string[]) => {
-    // Clear previous scrapes and connections
     Object.keys(eventSourcesRef.current).forEach(cleanupEventSource);
     setUrlStatuses([]);
     setSearchTerm('');
     setSelectedCategory('');
-    // Clear multiple source selections
     setSelectedSources([]);
 
     const newStatuses = urls.map((url) => ({
@@ -185,12 +183,10 @@ export default function App() {
           const newStatuses = [...prev];
           const statusIndex = prev.findIndex((statusObj) => statusObj.url === url);
           if (statusIndex !== -1) {
-            // Ensure each event has the correct source_url
             const eventsWithSource = data.map((event) => ({
               ...event,
               source_url: url,
             }));
-
             newStatuses[statusIndex] = {
               url,
               status: 'success',
@@ -201,7 +197,6 @@ export default function App() {
           return newStatuses;
         });
 
-        // If the data is cached, set up SSE for real-time updates
         if (status === 'cached') {
           setupEventSource(url);
         }
@@ -228,7 +223,6 @@ export default function App() {
     setSelectedSources([]);
   };
 
-  // Update toggle function to support multiple sources
   const toggleSourceFilter = (url: string) => {
     setSelectedSources((current) => {
       if (current.includes(url)) {
@@ -310,8 +304,8 @@ export default function App() {
                                       onClick={() => setSelectedSources([])}
                                       className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
                                   >
-                                    <Globe size={14} />
-                                    Source filter löschen
+                                    <Tag size={14} />
+                                    Clear source filter
                                   </button>
                               )}
                             </div>
@@ -377,6 +371,11 @@ export default function App() {
                                 )}
                               </div>
                           )}
+                        </div>
+
+                        {/* Export CSV Button */}
+                        <div className="flex justify-end">
+                          <ExportCSVButton data={filteredEvents} />
                         </div>
                       </div>
                   )}
