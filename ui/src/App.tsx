@@ -1,5 +1,4 @@
-// src/App.tsx
-
+// App.tsx
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Calendar, Sparkles, SearchX, RefreshCw, Tag } from 'lucide-react';
 import { URLInput } from './components/URLInput';
@@ -20,11 +19,19 @@ type EventSourceMap = {
   [url: string]: EventSource;
 };
 
+export interface AdvancedSettings {
+  minTextLength: number;
+  maxTextLength: number;
+  maxCombinedSize: number;
+  categorySet: string;
+  customPrompt: string;
+  gptModel: string;
+}
+
 export default function App() {
   const [urlStatuses, setUrlStatuses] = useState<URLStatus[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
-  // Changed from single source to multiple sources (array)
   const [selectedSources, setSelectedSources] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [sortConfig, setSortConfig] = useState<SortConfig>(null);
@@ -32,7 +39,7 @@ export default function App() {
 
   const isLoading = urlStatuses.some((status) => status.status === 'loading');
 
-  // Cleanup function for EventSource connections
+  // Cleanup a single EventSource connection
   const cleanupEventSource = (url: string) => {
     if (eventSourcesRef.current[url]) {
       eventSourcesRef.current[url].close();
@@ -40,7 +47,7 @@ export default function App() {
     }
   };
 
-  // Cleanup all EventSource connections on component unmount
+  // Cleanup all EventSource connections on unmount
   useEffect(() => {
     return () => {
       Object.keys(eventSourcesRef.current).forEach(cleanupEventSource);
@@ -72,7 +79,6 @@ export default function App() {
       const matchesCategory =
           selectedCategory === '' || event.category === selectedCategory;
 
-      // If no sources are selected, include all events; otherwise filter by selected sources.
       const matchesSource =
           selectedSources.length === 0 || selectedSources.includes(event.source_url);
 
@@ -90,17 +96,13 @@ export default function App() {
         return 0;
       });
     }
-
     return events;
   }, [allEvents, searchTerm, selectedCategory, selectedSources, sortConfig]);
 
   const handleSort = (key: keyof Event) => {
     setSortConfig((current) => {
       if (current?.key === key) {
-        return {
-          key,
-          direction: current.direction === 'asc' ? 'desc' : 'asc',
-        };
+        return { key, direction: current.direction === 'asc' ? 'desc' : 'asc' };
       }
       return { key, direction: 'asc' };
     });
@@ -108,23 +110,21 @@ export default function App() {
 
   const setupEventSource = (url: string) => {
     cleanupEventSource(url);
-
     const encodedUrl = encodeURIComponent(url);
     const eventSource = new EventSource(`http://localhost:3000/events-stream?url=${encodedUrl}`);
-
     eventSource.onmessage = (event) => {
       try {
         const updatedData = JSON.parse(event.data) as APIResponse;
         if (updatedData.data) {
           setUrlStatuses((prev) => {
             const newStatuses = [...prev];
-            const statusIndex = prev.findIndex((status) => status.url === url);
-            if (statusIndex !== -1) {
-              const eventsWithSource = updatedData.data.map((event) => ({
-                ...event,
+            const index = prev.findIndex((status) => status.url === url);
+            if (index !== -1) {
+              const eventsWithSource = updatedData.data.map((ev) => ({
+                ...ev,
                 source_url: url,
               }));
-              newStatuses[statusIndex] = {
+              newStatuses[index] = {
                 url,
                 status: 'success',
                 data: eventsWithSource,
@@ -138,7 +138,6 @@ export default function App() {
         console.error('Error parsing SSE data:', error);
       }
     };
-
     eventSource.onerror = (error) => {
       console.error('SSE Error:', error);
       setUrlStatuses((prev) =>
@@ -150,44 +149,47 @@ export default function App() {
       );
       cleanupEventSource(url);
     };
-
     eventSourcesRef.current[url] = eventSource;
   };
 
-  const handleSubmit = async (urls: string[]) => {
+  const handleSubmit = async (urls: string[], advancedSettings: AdvancedSettings) => {
+    // Cleanup existing EventSources and reset state
     Object.keys(eventSourcesRef.current).forEach(cleanupEventSource);
     setUrlStatuses([]);
     setSearchTerm('');
     setSelectedCategory('');
     setSelectedSources([]);
 
-    const newStatuses = urls.map((url) => ({
-      url,
-      status: 'loading' as const,
-    }));
-
+    const newStatuses = urls.map((url) => ({ url, status: 'loading' as const }));
     setUrlStatuses(newStatuses);
 
     for (const url of urls) {
       try {
         const encodedUrl = encodeURIComponent(url);
-        const response = await fetch(`http://localhost:3000/events?url=${encodedUrl}`);
+        let fetchUrl = `http://localhost:3000/events?url=${encodedUrl}`;
+        fetchUrl += `&minTextLength=${advancedSettings.minTextLength}`;
+        fetchUrl += `&maxTextLength=${advancedSettings.maxTextLength}`;
+        fetchUrl += `&maxCombinedSize=${advancedSettings.maxCombinedSize}`;
+        fetchUrl += `&categorySet=${encodeURIComponent(advancedSettings.categorySet)}`;
+        fetchUrl += `&gptModel=${encodeURIComponent(advancedSettings.gptModel)}`;
+        if (advancedSettings.customPrompt.trim() !== '') {
+          fetchUrl += `&prompt=${encodeURIComponent(advancedSettings.customPrompt)}`;
+        }
 
+        const response = await fetch(fetchUrl);
         if (!response.ok) {
           throw new Error('Failed to fetch events');
         }
-
         const { data, status } = (await response.json()) as APIResponse;
-
         setUrlStatuses((prev) => {
           const newStatuses = [...prev];
-          const statusIndex = prev.findIndex((statusObj) => statusObj.url === url);
-          if (statusIndex !== -1) {
-            const eventsWithSource = data.map((event) => ({
-              ...event,
+          const index = prev.findIndex((s) => s.url === url);
+          if (index !== -1) {
+            const eventsWithSource = data.map((ev) => ({
+              ...ev,
               source_url: url,
             }));
-            newStatuses[statusIndex] = {
+            newStatuses[index] = {
               url,
               status: 'success',
               data: eventsWithSource,
@@ -196,16 +198,15 @@ export default function App() {
           }
           return newStatuses;
         });
-
         if (status === 'cached') {
           setupEventSource(url);
         }
       } catch (error) {
         setUrlStatuses((prev) => {
           const newStatuses = [...prev];
-          const statusIndex = prev.findIndex((statusObj) => statusObj.url === url);
-          if (statusIndex !== -1) {
-            newStatuses[statusIndex] = {
+          const index = prev.findIndex((s) => s.url === url);
+          if (index !== -1) {
+            newStatuses[index] = {
               url,
               status: 'error',
               error: error instanceof Error ? error.message : 'An error occurred',
@@ -224,13 +225,9 @@ export default function App() {
   };
 
   const toggleSourceFilter = (url: string) => {
-    setSelectedSources((current) => {
-      if (current.includes(url)) {
-        return current.filter((item) => item !== url);
-      } else {
-        return [...current, url];
-      }
-    });
+    setSelectedSources((current) =>
+        current.includes(url) ? current.filter((item) => item !== url) : [...current, url]
+    );
   };
 
   const getEventsCountForUrl = (url: string) => {
@@ -373,7 +370,6 @@ export default function App() {
                           )}
                         </div>
 
-                        {/* Export CSV Button */}
                         <div className="flex justify-end">
                           <ExportCSVButton data={filteredEvents} />
                         </div>
