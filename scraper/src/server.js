@@ -68,6 +68,7 @@ async function setupServer() {
         const categorySetParam = req.query.categorySet
         const customPromptParam = req.query.prompt
         const gptModelParam = req.query.gptModel
+        const showEventsWithoutLinks = req.query.showEventsWithoutLinks
 
         const effectiveSettings = {
             minTextLength: (minTextLengthParam && Number(minTextLengthParam) > 0) ? parseInt(minTextLengthParam) : 25,
@@ -75,7 +76,8 @@ async function setupServer() {
             maxCombinedSize: (maxCombinedSizeParam && Number(maxCombinedSizeParam) > 0) ? parseInt(maxCombinedSizeParam) : 4000,
             categorySet: (categorySetParam && typeof categorySetParam === 'string' && categorySetParam.trim() !== '') ? categorySetParam : "Familienleben, Aktivitäten, Veranstaltungen, Essen/Rezepte, Münsterland, Kultur/Lifestyle, Gesundheit, Reisen, Einkaufen, Gemeinschaft, Tipps & Ratgeber",
             customPrompt: (customPromptParam && typeof customPromptParam === 'string' && customPromptParam.trim() !== '') ? customPromptParam : null,
-            gptModel: (gptModelParam && typeof gptModelParam === 'string' && gptModelParam.trim() !== '') ? gptModelParam : "gpt-4o-mini"
+            gptModel: (gptModelParam && typeof gptModelParam === 'string' && gptModelParam.trim() !== '') ? gptModelParam : "gpt-4o-mini",
+            showEventsWithoutLinks: (showEventsWithoutLinks && typeof showEventsWithoutLinks === 'string' && showEventsWithoutLinks.trim() !== '') ? showEventsWithoutLinks : false
         }
 
         try {
@@ -118,10 +120,11 @@ async function setupServer() {
                         }
                     })()
                 } else {
-                    // Immediate fetch branch when no cached events exist.
+
                     (async () => {
                         try {
                             console.log(`Fetching data for URL: ${sourceUrl}`)
+                            console.log(`Settings for ${sourceUrl}:`, effectiveSettings)
                             const { events } = await extractEventsFromUrl(sourceUrl, effectiveSettings)
                             await repository.upsertEvents(events, sourceUrl)
                             console.log(`Data fetched and stored for URL: ${sourceUrl}`)

@@ -1,10 +1,13 @@
-// Updated eventExtractor.js
 const { chromium } = require("playwright")
+
 const cheerio = require("cheerio")
+
 const OpenAI = require("openai")
+
 const stringSimilarity = require("string-similarity")
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
+
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY })
 
 async function scrapePage(url, retries = 3) {
@@ -33,7 +36,7 @@ async function scrapePage(url, retries = 3) {
     }
 }
 
-function gatherCandidateNodes($, root, minTextLength, maxTextLength) {
+function gatherCandidateNodes($, root, minTextLength, maxTextLength, showEventsWithoutLinks) {
     const queue = [root]
     const results = []
     while (queue.length) {
@@ -43,12 +46,17 @@ function gatherCandidateNodes($, root, minTextLength, maxTextLength) {
         const text = el.text().replace(/\s+/g, " ").trim()
         const linkCount = el.find("a[href]").filter((_, a) => $(a).attr("href") !== "#").length
         const length = text.length
-        if (length < minTextLength || linkCount === 0) {
+        if (length < minTextLength) {
             const children = el.children().get()
             queue.push(...children)
             continue
         }
         if (length <= maxTextLength) {
+            if (!showEventsWithoutLinks && linkCount === 0) {
+                const children = el.children().get()
+                queue.push(...children)
+                continue
+            }
             results.push(node)
         } else {
             const children = el.children().get()
@@ -66,7 +74,7 @@ function resolveHref(href, baseUrl) {
     }
 }
 
-function nodeToChunk($, node, baseUrl) {
+function nodeToChunk($, node, baseUrl, settings) {
     const el = $(node)
     const text = el.text().replace(/\s+/g, " ").trim()
     const links = []
@@ -81,6 +89,8 @@ function nodeToChunk($, node, baseUrl) {
     let chunkText = text
     if (links.length) {
         chunkText += `\nLinks found:\n${links.join("\n")}`
+    } else if (settings.showEventsWithoutLinks) {
+        chunkText += `\nLink found:\n${baseUrl}`
     }
     return chunkText
 }
@@ -119,10 +129,10 @@ function sanitizeAndChunkHtml(html, baseUrl, mergeChunks = true, settings) {
         console.log("[DEBUG] No <body> found, returning fallback text.")
         return [$.text().replace(/\s+/g, " ").trim()]
     }
-    const candidateNodes = gatherCandidateNodes($, bodyEl, settings.minTextLength, settings.maxTextLength)
+    const candidateNodes = gatherCandidateNodes($, bodyEl, settings.minTextLength, settings.maxTextLength, settings.showEventsWithoutLinks)
     console.log(`[DEBUG] Found ${candidateNodes.length} candidate nodes.`)
     let chunks = candidateNodes
-        .map((node) => nodeToChunk($, node, baseUrl))
+        .map((node) => nodeToChunk($, node, baseUrl, settings))
         .filter(Boolean)
     if (!chunks.length) {
         const fallbackText = $.text().replace(/\s+/g, " ").trim()
@@ -291,7 +301,8 @@ async function extractEventsFromUrl(url, settings = {}) {
         maxCombinedSize: settings.maxCombinedSize || 4000,
         categorySet: settings.categorySet || "Familienleben, Aktivitäten, Veranstaltungen, Essen/Rezepte, Münsterland, Kultur/Lifestyle, Gesundheit, Reisen, Einkaufen, Gemeinschaft, Tipps & Ratgeber",
         customPrompt: settings.customPrompt || null,
-        gptModel: settings.gptModel || "gpt-4o-mini"
+        gptModel: settings.gptModel || "gpt-4o-mini",
+        showEventsWithoutLinks: settings.showEventsWithoutLinks || false
     }
 
     let chunks = sanitizeAndChunkHtml(rawHtml, url, true, effectiveSettings)
