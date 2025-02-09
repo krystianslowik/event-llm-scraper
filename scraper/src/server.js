@@ -7,6 +7,7 @@ const { extractEventsFromUrl } = require('./modules/eventExtractor')
 
 const app = express()
 app.use(cors())
+app.use(express.json());
 
 const activeJobs = new Map()
 const clients = new Map()
@@ -61,7 +62,7 @@ async function setupServer() {
             return res.status(400).json({ error: 'Missing URL parameter' })
         }
 
-        // Extract additional settings from query parameters.
+        // Extract query parameters as fallback defaults
         const minTextLengthParam = req.query.minTextLength
         const maxTextLengthParam = req.query.maxTextLength
         const maxCombinedSizeParam = req.query.maxCombinedSize
@@ -71,15 +72,63 @@ async function setupServer() {
         const showEventsWithoutLinks = req.query.showEventsWithoutLinks
         const iterateIframes = req.query.iterateIframes
 
-        const effectiveSettings = {
-            minTextLength: (minTextLengthParam && Number(minTextLengthParam) > 0) ? parseInt(minTextLengthParam) : 25,
-            maxTextLength: (maxTextLengthParam && Number(maxTextLengthParam) > 0) ? parseInt(maxTextLengthParam) : 4000,
-            maxCombinedSize: (maxCombinedSizeParam && Number(maxCombinedSizeParam) > 0) ? parseInt(maxCombinedSizeParam) : 4000,
-            categorySet: (categorySetParam && typeof categorySetParam === 'string' && categorySetParam.trim() !== '') ? categorySetParam : "Familienleben, Aktivitäten, Veranstaltungen, Essen/Rezepte, Münsterland, Kultur/Lifestyle, Gesundheit, Reisen, Einkaufen, Gemeinschaft, Tipps & Ratgeber",
-            customPrompt: (customPromptParam && typeof customPromptParam === 'string' && customPromptParam.trim() !== '') ? customPromptParam : null,
-            gptModel: (gptModelParam && typeof gptModelParam === 'string' && gptModelParam.trim() !== '') ? gptModelParam : "gpt-4o-mini",
-            showEventsWithoutLinks: (showEventsWithoutLinks && typeof showEventsWithoutLinks === 'string' && showEventsWithoutLinks.trim() !== '') ? showEventsWithoutLinks : false,
-            iterateIframes: (iterateIframes && typeof iterateIframes === 'string' && iterateIframes.trim() !== '') ? iterateIframes : false
+        // Determine effective settings: use stored settings if they exist for the URL,
+        // otherwise fall back to the query parameters (or their defaults)
+        let effectiveSettings
+        try {
+            const storedSettingsRecord = await db('source_settings')
+                .where({ source_url: sourceUrl })
+                .first()
+            if (storedSettingsRecord) {
+                console.log("[DEBUG] Used stored settings: ", storedSettingsRecord.settings)
+
+                effectiveSettings = storedSettingsRecord.settings
+            } else {
+                effectiveSettings = {
+                    minTextLength: (minTextLengthParam && Number(minTextLengthParam) > 0) ? parseInt(minTextLengthParam) : 25,
+                    maxTextLength: (maxTextLengthParam && Number(maxTextLengthParam) > 0) ? parseInt(maxTextLengthParam) : 4000,
+                    maxCombinedSize: (maxCombinedSizeParam && Number(maxCombinedSizeParam) > 0) ? parseInt(maxCombinedSizeParam) : 4000,
+                    categorySet: (categorySetParam && typeof categorySetParam === 'string' && categorySetParam.trim() !== '')
+                        ? categorySetParam
+                        : "Familienleben, Aktivitäten, Veranstaltungen, Essen/Rezepte, Münsterland, Kultur/Lifestyle, Gesundheit, Reisen, Einkaufen, Gemeinschaft, Tipps & Ratgeber",
+                    customPrompt: (customPromptParam && typeof customPromptParam === 'string' && customPromptParam.trim() !== '')
+                        ? customPromptParam
+                        : null,
+                    gptModel: (gptModelParam && typeof gptModelParam === 'string' && gptModelParam.trim() !== '')
+                        ? gptModelParam
+                        : "gpt-4o-mini",
+                    showEventsWithoutLinks: (showEventsWithoutLinks && typeof showEventsWithoutLinks === 'string' && showEventsWithoutLinks.trim() !== '')
+                        ? showEventsWithoutLinks
+                        : false,
+                    iterateIframes: (iterateIframes && typeof iterateIframes === 'string' && iterateIframes.trim() !== '')
+                        ? iterateIframes
+                        : false
+                }
+                console.log("[DEBUG] Created new settings: ", effectiveSettings)
+            }
+        } catch (error) {
+            console.error(`Error fetching stored settings for ${sourceUrl}:`, error)
+            // Fallback to query parameters in case of an error fetching stored settings
+            effectiveSettings = {
+                minTextLength: (minTextLengthParam && Number(minTextLengthParam) > 0) ? parseInt(minTextLengthParam) : 25,
+                maxTextLength: (maxTextLengthParam && Number(maxTextLengthParam) > 0) ? parseInt(maxTextLengthParam) : 4000,
+                maxCombinedSize: (maxCombinedSizeParam && Number(maxCombinedSizeParam) > 0) ? parseInt(maxCombinedSizeParam) : 4000,
+                categorySet: (categorySetParam && typeof categorySetParam === 'string' && categorySetParam.trim() !== '')
+                    ? categorySetParam
+                    : "Familienleben, Aktivitäten, Veranstaltungen, Essen/Rezepte, Münsterland, Kultur/Lifestyle, Gesundheit, Reisen, Einkaufen, Gemeinschaft, Tipps & Ratgeber",
+                customPrompt: (customPromptParam && typeof customPromptParam === 'string' && customPromptParam.trim() !== '')
+                    ? customPromptParam
+                    : null,
+                gptModel: (gptModelParam && typeof gptModelParam === 'string' && gptModelParam.trim() !== '')
+                    ? gptModelParam
+                    : "gpt-4o-mini",
+                showEventsWithoutLinks: (showEventsWithoutLinks && typeof showEventsWithoutLinks === 'string' && showEventsWithoutLinks.trim() !== '')
+                    ? showEventsWithoutLinks
+                    : false,
+                iterateIframes: (iterateIframes && typeof iterateIframes === 'string' && iterateIframes.trim() !== '')
+                    ? iterateIframes
+                    : false
+            }
         }
 
         try {
@@ -122,7 +171,6 @@ async function setupServer() {
                         }
                     })()
                 } else {
-
                     (async () => {
                         try {
                             console.log(`Fetching data for URL: ${sourceUrl}`)
@@ -152,6 +200,84 @@ async function setupServer() {
             res.status(500).json({ error: error.message })
         }
     })
+
+    app.get('/settings-all', async (req, res) => {
+        try {
+            const settingsRecords = await db('source_settings').select('*');
+            return res.json(settingsRecords);
+        } catch (err) {
+            console.error('Error fetching all settings:', err);
+            return res.status(500).json({ error: 'Error fetching settings' });
+        }
+    });
+
+    app.get('/settings', async (req, res) => {
+        const sourceUrl = req.query.sourceUrl;
+        if (!sourceUrl) {
+            return res.status(400).json({ error: 'Missing sourceUrl parameter' });
+        }
+
+        try {
+            const settingsRecord = await db('source_settings')
+                .where({ source_url: sourceUrl })
+                .first();
+            if (!settingsRecord) {
+                return res.status(404).json({ error: 'No settings found for the given sourceUrl' });
+            }
+            return res.json(settingsRecord);
+        } catch (err) {
+            console.error('Error fetching settings for sourceUrl:', err);
+            return res.status(500).json({ error: 'Error fetching settings' });
+        }
+    });
+
+    app.post('/settings', async (req, res) => {
+        const { sourceUrl, settings } = req.body;
+        if (!sourceUrl || !settings) {
+            return res.status(400).json({ error: 'sourceUrl and settings are required' });
+        }
+
+        try {
+            // Check if settings for this sourceUrl already exist
+            const existing = await db('source_settings')
+                .where({ source_url: sourceUrl })
+                .first();
+
+            if (existing) {
+                const updated = await db('source_settings')
+                    .where({ source_url: sourceUrl })
+                    .update({ settings: settings, updated_at: db.fn.now() })
+                    .returning('*');
+                return res.json(updated[0]);
+            } else {
+                const inserted = await db('source_settings')
+                    .insert({ source_url: sourceUrl, settings: settings })
+                    .returning('*');
+                return res.json(inserted[0]);
+            }
+        } catch (err) {
+            console.error('Error saving settings:', err);
+            return res.status(500).json({ error: 'Error saving settings' });
+        }
+    });
+
+    app.delete('/settings', async (req, res) => {
+        const sourceUrl = req.query.sourceUrl;
+        if (!sourceUrl) {
+            return res.status(400).json({ error: 'Missing sourceUrl parameter' });
+        }
+
+        try {
+            const numDeleted = await db('source_settings').where({ source_url: sourceUrl }).del();
+            if (numDeleted === 0) {
+                return res.status(404).json({ error: 'No settings found for the given sourceUrl' });
+            }
+            return res.json({ success: true, message: 'Setting deleted successfully' });
+        } catch (err) {
+            console.error('Error deleting settings:', err);
+            return res.status(500).json({ error: 'Error deleting settings' });
+        }
+    });
 
     const PORT = process.env.PORT || 3000
     app.listen(PORT, () => {
