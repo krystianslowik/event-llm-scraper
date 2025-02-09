@@ -20,6 +20,7 @@ type EventSourceMap = {
 };
 
 export interface AdvancedSettings {
+  showEventsWithoutLinks: boolean;
   minTextLength: number;
   maxTextLength: number;
   maxCombinedSize: number;
