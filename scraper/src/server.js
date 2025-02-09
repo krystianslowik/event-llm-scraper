@@ -69,6 +69,7 @@ async function setupServer() {
         const customPromptParam = req.query.prompt
         const gptModelParam = req.query.gptModel
         const showEventsWithoutLinks = req.query.showEventsWithoutLinks
+        const iterateIframes = req.query.iterateIframes
 
         const effectiveSettings = {
             minTextLength: (minTextLengthParam && Number(minTextLengthParam) > 0) ? parseInt(minTextLengthParam) : 25,
@@ -77,7 +78,8 @@ async function setupServer() {
             categorySet: (categorySetParam && typeof categorySetParam === 'string' && categorySetParam.trim() !== '') ? categorySetParam : "Familienleben, Aktivitäten, Veranstaltungen, Essen/Rezepte, Münsterland, Kultur/Lifestyle, Gesundheit, Reisen, Einkaufen, Gemeinschaft, Tipps & Ratgeber",
             customPrompt: (customPromptParam && typeof customPromptParam === 'string' && customPromptParam.trim() !== '') ? customPromptParam : null,
             gptModel: (gptModelParam && typeof gptModelParam === 'string' && gptModelParam.trim() !== '') ? gptModelParam : "gpt-4o-mini",
-            showEventsWithoutLinks: (showEventsWithoutLinks && typeof showEventsWithoutLinks === 'string' && showEventsWithoutLinks.trim() !== '') ? showEventsWithoutLinks : false
+            showEventsWithoutLinks: (showEventsWithoutLinks && typeof showEventsWithoutLinks === 'string' && showEventsWithoutLinks.trim() !== '') ? showEventsWithoutLinks : false,
+            iterateIframes: (iterateIframes && typeof iterateIframes === 'string' && iterateIframes.trim() !== '') ? iterateIframes : false
         }
 
         try {

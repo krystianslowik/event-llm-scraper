@@ -1,16 +1,13 @@
 const { chromium } = require("playwright")
-
 const cheerio = require("cheerio")
-
 const OpenAI = require("openai")
-
 const stringSimilarity = require("string-similarity")
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
-
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY })
 
-async function scrapePage(url, retries = 3) {
+// Modified scrapePage to accept settings and optionally iterate through iframes.
+async function scrapePage(url, settings = {}, retries = 3) {
     console.log(`[DEBUG] Starting to scrape page: ${url}`)
     const browser = await chromium.launch({ args: ["--disable-http2"] })
     const context = await browser.newContext({
@@ -22,10 +19,30 @@ async function scrapePage(url, retries = 3) {
         try {
             console.log(`[DEBUG] Attempt ${attempt} to navigate.`)
             await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 })
-            const content = await page.content()
+            // Get main page content
+            let htmlContent = await page.content()
+
+            // If iterateIframes flag is set, iterate through all frames and append their content.
+            if (settings.iterateIframes) {
+                const frames = page.frames()
+                // Skip the main frame
+                for (const frame of frames) {
+                    if (frame === page.mainFrame()) continue
+                    try {
+                        const frameContent = await frame.content()
+                        // Optionally, prepend a marker to identify iframe content.
+                        htmlContent += `\n<!-- Begin iframe content from ${frame.url()} -->\n`
+                        htmlContent += frameContent
+                        htmlContent += `\n<!-- End iframe content -->\n`
+                    } catch (err) {
+                        console.error(`[DEBUG] Error extracting content from iframe: ${err.message}`)
+                    }
+                }
+            }
+
             console.log(`[DEBUG] Successfully scraped page content.`)
             await browser.close()
-            return content
+            return htmlContent
         } catch (error) {
             console.error(`[DEBUG] Error on attempt ${attempt}: ${error.message}`)
             if (attempt === retries) {
@@ -292,9 +309,7 @@ async function runChunkFlow(chunks, baseUrl, settings) {
 
 async function extractEventsFromUrl(url, settings = {}) {
     console.log(`[DEBUG] Starting extraction for URL: ${url}`)
-    const rawHtml = await scrapePage(url)
-    console.log(`[DEBUG] Scraped HTML length: ${rawHtml.length}`)
-
+    // Build effective settings, including the new iterateIframes flag (default to false if not provided)
     const effectiveSettings = {
         minTextLength: settings.minTextLength || 25,
         maxTextLength: settings.maxTextLength || 4000,
@@ -302,8 +317,12 @@ async function extractEventsFromUrl(url, settings = {}) {
         categorySet: settings.categorySet || "Familienleben, Aktivitäten, Veranstaltungen, Essen/Rezepte, Münsterland, Kultur/Lifestyle, Gesundheit, Reisen, Einkaufen, Gemeinschaft, Tipps & Ratgeber",
         customPrompt: settings.customPrompt || null,
         gptModel: settings.gptModel || "gpt-4o-mini",
-        showEventsWithoutLinks: settings.showEventsWithoutLinks || false
+        showEventsWithoutLinks: settings.showEventsWithoutLinks || false,
+        iterateIframes: settings.iterateIframes || false
     }
+
+    const rawHtml = await scrapePage(url, effectiveSettings)
+    console.log(`[DEBUG] Scraped HTML length: ${rawHtml.length}`)
 
     let chunks = sanitizeAndChunkHtml(rawHtml, url, true, effectiveSettings)
     console.log(`[DEBUG] First pass chunk count: ${chunks.length}`)

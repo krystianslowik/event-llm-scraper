@@ -1,5 +1,5 @@
 // App.tsx
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { Calendar, Sparkles, SearchX, RefreshCw, Tag } from 'lucide-react';
 import { URLInput } from './components/URLInput';
 import { EventCard } from './components/EventCard';
@@ -20,13 +20,14 @@ type EventSourceMap = {
 };
 
 export interface AdvancedSettings {
-  showEventsWithoutLinks: boolean;
   minTextLength: number;
   maxTextLength: number;
   maxCombinedSize: number;
   categorySet: string;
   customPrompt: string;
   gptModel: string;
+  showEventsWithoutLinks: boolean;
+  iterateIframes: boolean;
 }
 
 export default function App() {
@@ -173,6 +174,8 @@ export default function App() {
         fetchUrl += `&maxCombinedSize=${advancedSettings.maxCombinedSize}`;
         fetchUrl += `&categorySet=${encodeURIComponent(advancedSettings.categorySet)}`;
         fetchUrl += `&gptModel=${encodeURIComponent(advancedSettings.gptModel)}`;
+        fetchUrl += `&iterateIframes=${encodeURIComponent(advancedSettings.iterateIframes)}`;
+        fetchUrl += `&showEventsWithoutLinks=${encodeURIComponent(advancedSettings.showEventsWithoutLinks)}`;
         if (advancedSettings.customPrompt.trim() !== '') {
           fetchUrl += `&prompt=${encodeURIComponent(advancedSettings.customPrompt)}`;
         }

@@ -1,4 +1,3 @@
-import React from 'react';
 import { Calendar, Link as LinkIcon, Clock } from 'lucide-react';
 import { Event } from '../types';
 

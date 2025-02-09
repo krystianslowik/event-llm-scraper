@@ -22,7 +22,8 @@ export function URLInput({ onSubmit, isLoading }: URLInputProps) {
         "Familienleben, Aktivitäten, Veranstaltungen, Essen/Rezepte, Münsterland, Kultur/Lifestyle, Gesundheit, Reisen, Einkaufen, Gemeinschaft, Tipps & Ratgeber",
     customPrompt: '',
     gptModel: 'gpt-4o-mini',
-    showEventsWithoutLinks: false
+    showEventsWithoutLinks: false,
+    iterateIframes: false
   });
 
   const handleSubmit = (e: React.FormEvent) => {

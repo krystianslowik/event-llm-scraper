@@ -1,3 +1,4 @@
+// AdvancedSettingsModal.tsx
 import React, { useMemo } from 'react'
 import { X, Info } from 'lucide-react'
 import type { AdvancedSettings } from '../App'
@@ -22,7 +23,9 @@ const fieldDescriptions: { [key in keyof AdvancedSettings]?: string } = {
     gptModel:
         "Der Name des GPT-Modells, das für die Textzusammenfassung verwendet wird (z. B. 'gpt-4o-mini').",
     showEventsWithoutLinks:
-        "Wenn aktiviert, werden auch Elemente ohne Links als Events extrahiert. Die URL wird dann auf die Hauptseite gesetzt."
+        "Wenn aktiviert, werden auch Elemente ohne Links als Events extrahiert. Die URL wird dann auf die Hauptseite gesetzt.",
+    iterateIframes:
+        "Wenn aktiviert, wird der Inhalt aller Iframes geladen und dem Hauptinhalt hinzugefügt."
 }
 
 function Tooltip({ text, children }: { text: string; children: React.ReactNode }) {
@@ -36,6 +39,7 @@ function Tooltip({ text, children }: { text: string; children: React.ReactNode }
     )
 }
 
+// ToggleSwitch component for a nicer UI
 function ToggleSwitch({
                           enabled,
                           onToggle,
@@ -74,6 +78,7 @@ export function AdvancedSettingsModal({
             { label: 'Category Set', value: settings.categorySet },
             { label: 'GPT Model', value: settings.gptModel },
             { label: 'Elemente ohne Links', value: settings.showEventsWithoutLinks ? 'Ja' : 'Nein' },
+            { label: 'Iframe-Inhalt einbeziehen', value: settings.iterateIframes ? 'Ja' : 'Nein' },
         ]
         if (settings.customPrompt.trim()) {
             previewItems.push({ label: 'Custom Prompt', value: settings.customPrompt })
@@ -146,13 +151,13 @@ export function AdvancedSettingsModal({
                     {renderField('maxCombinedSize', 'number')}
                     {renderField('categorySet', 'text')}
                     {renderField('gptModel', 'text')}
-                    {/* Customized Switch Container */}
+                    {/* Switch for "Elemente ohne Links einbeziehen" */}
                     <div className="flex items-center justify-between p-4 border rounded-md">
                         <div>
                             <div className="flex items-center">
-                                <span className="text-sm font-medium text-gray-700">
-                                    Elemente ohne Links einbeziehen
-                                </span>
+                <span className="text-sm font-medium text-gray-700">
+                  Elemente ohne Links einbeziehen
+                </span>
                                 <Tooltip text={fieldDescriptions.showEventsWithoutLinks || ''}>
                                     <Info size={12} className="text-gray-400 ml-1" />
                                 </Tooltip>
@@ -165,6 +170,28 @@ export function AdvancedSettingsModal({
                             enabled={settings.showEventsWithoutLinks}
                             onToggle={(value) =>
                                 onChange({ ...settings, showEventsWithoutLinks: value })
+                            }
+                        />
+                    </div>
+                    {/* Switch for "Iframe-Inhalt einbeziehen" */}
+                    <div className="flex items-center justify-between p-4 border rounded-md">
+                        <div>
+                            <div className="flex items-center">
+                <span className="text-sm font-medium text-gray-700">
+                  Iframe-Inhalt einbeziehen
+                </span>
+                                <Tooltip text={fieldDescriptions.iterateIframes || ''}>
+                                    <Info size={12} className="text-gray-400 ml-1" />
+                                </Tooltip>
+                            </div>
+                            <p className="text-xs text-gray-500">
+                                Aktivieren, um den Inhalt von Iframes zu laden.
+                            </p>
+                        </div>
+                        <ToggleSwitch
+                            enabled={settings.iterateIframes}
+                            onToggle={(value) =>
+                                onChange({ ...settings, iterateIframes: value })
                             }
                         />
                     </div>
