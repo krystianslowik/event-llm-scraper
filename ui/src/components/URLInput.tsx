@@ -23,7 +23,7 @@ export function URLInput({ onSubmit, isLoading }: URLInputProps) {
     customPrompt: '',
     gptModel: 'gpt-4o-mini',
     showEventsWithoutLinks: false,
-    iterateIframes: false
+    iterateIframes: false,
   });
 
   const handleSubmit = (e: React.FormEvent) => {

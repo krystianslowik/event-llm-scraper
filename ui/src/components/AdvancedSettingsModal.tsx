@@ -1,12 +1,13 @@
 // AdvancedSettingsModal.tsx
-import React, { useMemo } from 'react'
-import { X, Info } from 'lucide-react'
-import type { AdvancedSettings } from '../App'
+import React, { useMemo, useState } from 'react';
+import { X, Info } from 'lucide-react';
+import type { AdvancedSettings } from '../App';
+import { StoredSettingsTab } from './StoredSettingsTab';
 
 interface AdvancedSettingsModalProps {
-    settings: AdvancedSettings
-    onChange: (newSettings: AdvancedSettings) => void
-    onClose: () => void
+    settings: AdvancedSettings;
+    onChange: (newSettings: AdvancedSettings) => void;
+    onClose: () => void;
 }
 
 const fieldDescriptions: { [key in keyof AdvancedSettings]?: string } = {
@@ -26,7 +27,7 @@ const fieldDescriptions: { [key in keyof AdvancedSettings]?: string } = {
         "Wenn aktiviert, werden auch Elemente ohne Links als Events extrahiert. Die URL wird dann auf die Hauptseite gesetzt.",
     iterateIframes:
         "Wenn aktiviert, wird der Inhalt aller Iframes geladen und dem Hauptinhalt hinzugefügt."
-}
+};
 
 function Tooltip({ text, children }: { text: string; children: React.ReactNode }) {
     return (
@@ -36,40 +37,25 @@ function Tooltip({ text, children }: { text: string; children: React.ReactNode }
                 {text}
             </div>
         </div>
-    )
+    );
 }
 
-// ToggleSwitch component for a nicer UI
-function ToggleSwitch({
-                          enabled,
-                          onToggle,
-                      }: {
-    enabled: boolean
-    onToggle: (value: boolean) => void
-}) {
+function ToggleSwitch({ enabled, onToggle }: { enabled: boolean; onToggle: (value: boolean) => void; }) {
     return (
         <button
             type="button"
             onClick={() => onToggle(!enabled)}
-            className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                enabled ? 'bg-blue-600' : 'bg-gray-300'
-            }`}
+            className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${enabled ? 'bg-blue-600' : 'bg-gray-300'}`}
         >
             <span className="sr-only">Toggle</span>
-            <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    enabled ? 'translate-x-6' : 'translate-x-1'
-                }`}
-            />
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${enabled ? 'translate-x-6' : 'translate-x-1'}`} />
         </button>
-    )
+    );
 }
 
-export function AdvancedSettingsModal({
-                                          settings,
-                                          onChange,
-                                          onClose,
-                                      }: AdvancedSettingsModalProps) {
+export function AdvancedSettingsModal({ settings, onChange, onClose }: AdvancedSettingsModalProps) {
+    const [activeTab, setActiveTab] = useState<'default' | 'stored'>('default');
+
     const queryPreview = useMemo(() => {
         const previewItems = [
             { label: 'Min Text Length', value: settings.minTextLength.toString() },
@@ -79,20 +65,19 @@ export function AdvancedSettingsModal({
             { label: 'GPT Model', value: settings.gptModel },
             { label: 'Elemente ohne Links', value: settings.showEventsWithoutLinks ? 'Ja' : 'Nein' },
             { label: 'Iframe-Inhalt einbeziehen', value: settings.iterateIframes ? 'Ja' : 'Nein' },
-        ]
+        ];
         if (settings.customPrompt.trim()) {
-            previewItems.push({ label: 'Custom Prompt', value: settings.customPrompt })
+            previewItems.push({ label: 'Custom Prompt', value: settings.customPrompt });
         }
-        return previewItems
-    }, [settings])
+        return previewItems;
+    }, [settings]);
 
-    // Helper function to render a standard input field with tooltip
     const renderField = (
         fieldKey: keyof AdvancedSettings,
         type: 'text' | 'number' | 'textarea' = 'text'
     ) => {
-        const value = settings[fieldKey]
-        const description = fieldDescriptions[fieldKey] || ''
+        const value = settings[fieldKey];
+        const description = fieldDescriptions[fieldKey] || '';
         const labelMap: { [key in keyof AdvancedSettings]?: string } = {
             minTextLength: 'Min Text Length',
             maxTextLength: 'Max Text Length',
@@ -100,7 +85,7 @@ export function AdvancedSettingsModal({
             categorySet: 'Category Set',
             customPrompt: 'Custom Prompt',
             gptModel: 'GPT Model',
-        }
+        };
         return (
             <div className="space-y-1">
                 <label className="block text-sm font-medium text-gray-700">
@@ -112,9 +97,7 @@ export function AdvancedSettingsModal({
                 {type === 'textarea' ? (
                     <textarea
                         value={value as string}
-                        onChange={(e) =>
-                            onChange({ ...settings, [fieldKey]: e.target.value } as AdvancedSettings)
-                        }
+                        onChange={(e) => onChange({ ...settings, [fieldKey]: e.target.value } as AdvancedSettings)}
                         className="mt-1 w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500"
                         rows={3}
                     />
@@ -123,21 +106,83 @@ export function AdvancedSettingsModal({
                         type={type}
                         value={value as string | number}
                         onChange={(e) =>
-                            onChange({
-                                ...settings,
-                                [fieldKey]:
-                                    type === 'number' ? Number(e.target.value) : e.target.value,
-                            } as AdvancedSettings)
+                            onChange({ ...settings, [fieldKey]: type === 'number' ? Number(e.target.value) : e.target.value } as AdvancedSettings)
                         }
                         className="mt-1 w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500"
                     />
                 )}
             </div>
-        )
-    }
+        );
+    };
+
+    const defaultSettingsForm = (
+        <>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {renderField('minTextLength', 'number')}
+                {renderField('maxTextLength', 'number')}
+                {renderField('maxCombinedSize', 'number')}
+                {renderField('categorySet', 'text')}
+                {renderField('gptModel', 'text')}
+                <div className="flex items-center justify-between p-4 border rounded-md">
+                    <div>
+                        <div className="flex items-center">
+                            <span className="text-sm font-medium text-gray-700">Elemente ohne Links einbeziehen</span>
+                            <Tooltip text={fieldDescriptions.showEventsWithoutLinks || ''}>
+                                <Info size={12} className="text-gray-400 ml-1" />
+                            </Tooltip>
+                        </div>
+                        <p className="text-xs text-gray-500">Aktivieren, um auch Events ohne Links zu erfassen.</p>
+                    </div>
+                    <ToggleSwitch
+                        enabled={settings.showEventsWithoutLinks}
+                        onToggle={(value) => onChange({ ...settings, showEventsWithoutLinks: value })}
+                    />
+                </div>
+                <div className="flex items-center justify-between p-4 border rounded-md">
+                    <div>
+                        <div className="flex items-center">
+                            <span className="text-sm font-medium text-gray-700">Iframe-Inhalt einbeziehen</span>
+                            <Tooltip text={fieldDescriptions.iterateIframes || ''}>
+                                <Info size={12} className="text-gray-400 ml-1" />
+                            </Tooltip>
+                        </div>
+                        <p className="text-xs text-gray-500">Aktivieren, um den Inhalt von Iframes zu laden.</p>
+                    </div>
+                    <ToggleSwitch
+                        enabled={settings.iterateIframes}
+                        onToggle={(value) => onChange({ ...settings, iterateIframes: value })}
+                    />
+                </div>
+            </div>
+            <div className="mt-4">{renderField('customPrompt', 'textarea')}</div>
+            <div className="mt-6">
+                <h4 className="text-sm font-medium text-gray-700 mb-2">Query Preview</h4>
+                <div className="bg-gray-100 p-4 rounded text-sm text-gray-700 max-h-48 overflow-y-auto whitespace-pre-wrap break-words">
+                    {queryPreview.map(({ label, value }, idx) => (
+                        <div key={idx} className="flex justify-between border-b border-gray-200 py-1 last:border-0">
+                            <span className="font-medium">{label}:</span>
+                            <span className="text-gray-600 ml-2">{value}</span>
+                        </div>
+                    ))}
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                    Diese Vorschau zeigt die aktuellen API-Parameter in einer lesbaren Form.
+                </p>
+            </div>
+            <div className="mt-6 flex justify-end">
+                <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+                >
+                    Speichern & Schließen
+                </button>
+            </div>
+        </>
+    );
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50 p-4">
             <div className="bg-white rounded-xl p-6 w-full max-w-4xl shadow-lg">
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="text-2xl font-semibold text-gray-800">Erweiterte Einstellungen</h3>
@@ -145,87 +190,32 @@ export function AdvancedSettingsModal({
                         <X size={24} />
                     </button>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {renderField('minTextLength', 'number')}
-                    {renderField('maxTextLength', 'number')}
-                    {renderField('maxCombinedSize', 'number')}
-                    {renderField('categorySet', 'text')}
-                    {renderField('gptModel', 'text')}
-                    {/* Switch for "Elemente ohne Links einbeziehen" */}
-                    <div className="flex items-center justify-between p-4 border rounded-md">
-                        <div>
-                            <div className="flex items-center">
-                <span className="text-sm font-medium text-gray-700">
-                  Elemente ohne Links einbeziehen
-                </span>
-                                <Tooltip text={fieldDescriptions.showEventsWithoutLinks || ''}>
-                                    <Info size={12} className="text-gray-400 ml-1" />
-                                </Tooltip>
-                            </div>
-                            <p className="text-xs text-gray-500">
-                                Aktivieren, um auch Events ohne Links zu erfassen.
-                            </p>
-                        </div>
-                        <ToggleSwitch
-                            enabled={settings.showEventsWithoutLinks}
-                            onToggle={(value) =>
-                                onChange({ ...settings, showEventsWithoutLinks: value })
-                            }
-                        />
-                    </div>
-                    {/* Switch for "Iframe-Inhalt einbeziehen" */}
-                    <div className="flex items-center justify-between p-4 border rounded-md">
-                        <div>
-                            <div className="flex items-center">
-                <span className="text-sm font-medium text-gray-700">
-                  Iframe-Inhalt einbeziehen
-                </span>
-                                <Tooltip text={fieldDescriptions.iterateIframes || ''}>
-                                    <Info size={12} className="text-gray-400 ml-1" />
-                                </Tooltip>
-                            </div>
-                            <p className="text-xs text-gray-500">
-                                Aktivieren, um den Inhalt von Iframes zu laden.
-                            </p>
-                        </div>
-                        <ToggleSwitch
-                            enabled={settings.iterateIframes}
-                            onToggle={(value) =>
-                                onChange({ ...settings, iterateIframes: value })
-                            }
-                        />
-                    </div>
+                <div className="mb-4 border-b border-gray-200">
+                    <nav className="-mb-px flex space-x-8">
+                        <button
+                            onClick={() => setActiveTab('default')}
+                            className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
+                                activeTab === 'default'
+                                    ? 'border-blue-600 text-blue-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }`}
+                        >
+                            Default Settings
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('stored')}
+                            className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
+                                activeTab === 'stored'
+                                    ? 'border-blue-600 text-blue-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }`}
+                        >
+                            Stored Settings
+                        </button>
+                    </nav>
                 </div>
-                <div className="mt-4">
-                    {renderField('customPrompt', 'textarea')}
-                </div>
-                <div className="mt-6">
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">Query Preview</h4>
-                    <div className="bg-gray-100 p-4 rounded text-sm text-gray-700 max-h-48 overflow-y-auto whitespace-pre-wrap break-words">
-                        {queryPreview.map(({ label, value }, idx) => (
-                            <div
-                                key={idx}
-                                className="flex justify-between border-b border-gray-200 py-1 last:border-0"
-                            >
-                                <span className="font-medium">{label}:</span>
-                                <span className="text-gray-600 ml-2">{value}</span>
-                            </div>
-                        ))}
-                    </div>
-                    <p className="text-xs text-gray-500 mt-2">
-                        Diese Vorschau zeigt die aktuellen API-Parameter in einer lesbaren Form.
-                    </p>
-                </div>
-                <div className="mt-6 flex justify-end">
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
-                    >
-                        Speichern & Schließen
-                    </button>
-                </div>
+                {activeTab === 'default' ? defaultSettingsForm : <StoredSettingsTab />}
             </div>
         </div>
-    )
+    );
 }
