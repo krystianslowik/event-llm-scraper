@@ -77,6 +77,34 @@ class EventsRepository {
             }
         });
     }
+
+    async logScrapingAttempt(sourceUrl, settingsUsed, eventCount) {
+        return this.db('scraping_attempts').insert({
+            source_url: sourceUrl,
+            settings_used: settingsUsed,
+            event_count: eventCount
+        })
+    }
+
+    async saveScore(sourceUrl, scoreType, scoreData) {
+        return this.db('scoring_results').insert({
+            source_url: sourceUrl,
+            score_type: scoreType,
+            score_data: scoreData
+        })
+    }
+
+    async getScrapingAttempts(sourceUrl) {
+        return this.db('scraping_attempts')
+            .where({ source_url: sourceUrl })
+            .select('*')
+    }
+
+    async getScores(sourceUrl) {
+        return this.db('scoring_results')
+            .where({ source_url: sourceUrl })
+            .select('*')
+    }
 }
 
 module.exports = EventsRepository;

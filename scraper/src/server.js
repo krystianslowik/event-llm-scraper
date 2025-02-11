@@ -1,13 +1,14 @@
-// Updated server.js
+/* Updated server.js */
 const express = require('express')
 const cors = require('cors')
 const db = require('./db/db')
 const EventsRepository = require('./db/eventsRepository')
 const { extractEventsFromUrl } = require('./modules/eventExtractor')
+const { calculateMedian } = require('./utils/helpers')
 
 const app = express()
 app.use(cors())
-app.use(express.json());
+app.use(express.json())
 
 const activeJobs = new Map()
 const clients = new Map()
@@ -81,7 +82,6 @@ async function setupServer() {
                 .first()
             if (storedSettingsRecord) {
                 console.log("[DEBUG] Used stored settings: ", storedSettingsRecord.settings)
-
                 effectiveSettings = storedSettingsRecord.settings
             } else {
                 effectiveSettings = {
@@ -201,83 +201,109 @@ async function setupServer() {
         }
     })
 
+    app.get('/scores/known/:url', async (req, res) => {
+        try {
+            const scores = await repository.getScores(req.params.url)
+            res.json(scores.filter(s => s.score_type === 'known'))
+        } catch (err) {
+            res.status(500).json({ error: err.message })
+        }
+    })
+
+    app.get('/scores/unknown/:url', async (req, res) => {
+        try {
+            const attempts = await repository.getScrapingAttempts(req.params.url)
+            const eventCounts = attempts.map(a => a.event_count)
+            const median = calculateMedian(eventCounts)
+            const scores = attempts.map(attempt => ({
+                id: attempt.id,
+                consensus: median ? 1 - (Math.abs(attempt.event_count - median) / median) : 0,
+                event_count: attempt.event_count,
+                settings: attempt.settings_used
+            }))
+            res.json({ median, scores })
+        } catch (err) {
+            res.status(500).json({ error: err.message })
+        }
+    })
+
     app.get('/settings-all', async (req, res) => {
         try {
-            const settingsRecords = await db('source_settings').select('*');
-            return res.json(settingsRecords);
+            const settingsRecords = await db('source_settings').select('*')
+            return res.json(settingsRecords)
         } catch (err) {
-            console.error('Error fetching all settings:', err);
-            return res.status(500).json({ error: 'Error fetching settings' });
+            console.error('Error fetching all settings:', err)
+            return res.status(500).json({ error: 'Error fetching settings' })
         }
-    });
+    })
 
     app.get('/settings', async (req, res) => {
-        const sourceUrl = req.query.sourceUrl;
+        const sourceUrl = req.query.sourceUrl
         if (!sourceUrl) {
-            return res.status(400).json({ error: 'Missing sourceUrl parameter' });
+            return res.status(400).json({ error: 'Missing sourceUrl parameter' })
         }
-
         try {
             const settingsRecord = await db('source_settings')
                 .where({ source_url: sourceUrl })
-                .first();
+                .first()
             if (!settingsRecord) {
-                return res.status(404).json({ error: 'No settings found for the given sourceUrl' });
+                return res.status(404).json({ error: 'No settings found for the given sourceUrl' })
             }
-            return res.json(settingsRecord);
+            return res.json(settingsRecord)
         } catch (err) {
-            console.error('Error fetching settings for sourceUrl:', err);
-            return res.status(500).json({ error: 'Error fetching settings' });
+            console.error('Error fetching settings for sourceUrl:', err)
+            return res.status(500).json({ error: 'Error fetching settings' })
         }
-    });
+    })
 
     app.post('/settings', async (req, res) => {
-        const { sourceUrl, settings } = req.body;
+        const { sourceUrl, settings, expectedEvents } = req.body
         if (!sourceUrl || !settings) {
-            return res.status(400).json({ error: 'sourceUrl and settings are required' });
+            return res.status(400).json({ error: 'sourceUrl and settings are required' })
         }
-
         try {
             // Check if settings for this sourceUrl already exist
             const existing = await db('source_settings')
                 .where({ source_url: sourceUrl })
-                .first();
-
+                .first()
             if (existing) {
                 const updated = await db('source_settings')
                     .where({ source_url: sourceUrl })
-                    .update({ settings: settings, updated_at: db.fn.now() })
-                    .returning('*');
-                return res.json(updated[0]);
+                    .update({
+                        settings: settings,
+                        expected_events: expectedEvents,
+                        updated_at: db.fn.now()
+                    })
+                    .returning('*')
+                return res.json(updated[0])
             } else {
                 const inserted = await db('source_settings')
-                    .insert({ source_url: sourceUrl, settings: settings })
-                    .returning('*');
-                return res.json(inserted[0]);
+                    .insert({ source_url: sourceUrl, settings: settings, expected_events: expectedEvents })
+                    .returning('*')
+                return res.json(inserted[0])
             }
         } catch (err) {
-            console.error('Error saving settings:', err);
-            return res.status(500).json({ error: 'Error saving settings' });
+            console.error('Error saving settings:', err)
+            return res.status(500).json({ error: 'Error saving settings' })
         }
-    });
+    })
 
     app.delete('/settings', async (req, res) => {
-        const sourceUrl = req.query.sourceUrl;
+        const sourceUrl = req.query.sourceUrl
         if (!sourceUrl) {
-            return res.status(400).json({ error: 'Missing sourceUrl parameter' });
+            return res.status(400).json({ error: 'Missing sourceUrl parameter' })
         }
-
         try {
-            const numDeleted = await db('source_settings').where({ source_url: sourceUrl }).del();
+            const numDeleted = await db('source_settings').where({ source_url: sourceUrl }).del()
             if (numDeleted === 0) {
-                return res.status(404).json({ error: 'No settings found for the given sourceUrl' });
+                return res.status(404).json({ error: 'No settings found for the given sourceUrl' })
             }
-            return res.json({ success: true, message: 'Setting deleted successfully' });
+            return res.json({ success: true, message: 'Setting deleted successfully' })
         } catch (err) {
-            console.error('Error deleting settings:', err);
-            return res.status(500).json({ error: 'Error deleting settings' });
+            console.error('Error deleting settings:', err)
+            return res.status(500).json({ error: 'Error deleting settings' })
         }
-    });
+    })
 
     const PORT = process.env.PORT || 3000
     app.listen(PORT, () => {

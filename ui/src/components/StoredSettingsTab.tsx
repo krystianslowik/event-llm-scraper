@@ -1,6 +1,6 @@
-// StoredSettingsTab.tsx
+/* Updated StoredSettingsTab.tsx */
 import React, { useEffect, useState } from 'react';
-import { ChevronDown, ChevronUp, X } from 'lucide-react';
+import {ChevronDown, ChevronUp, RefreshCw, X} from 'lucide-react';
 import type { AdvancedSettings } from '../App';
 
 interface StoredSetting {
@@ -11,14 +11,40 @@ interface StoredSetting {
     updated_at: string;
 }
 
-export function StoredSettingsTab() {
+interface ScoringResult {
+    id: number;
+    source_url: string;
+    score_type: string;
+    score_data: {
+        score: number;
+        accuracy: number;
+        completeness: number;
+        scraped: number;
+        expected: number;
+        settings?: AdvancedSettings;
+    };
+    calculated_at: string;
+}
+
+interface StoredSettingsTabProps {
+    onRestoreSettings: (settings: AdvancedSettings) => void;
+}
+
+function getScoreColor(score: number): string {
+    if (score >= 0.8) return 'bg-green-500';
+    else if (score >= 0.5) return 'bg-yellow-500';
+    else return 'bg-red-500';
+}
+
+export function StoredSettingsTab({ onRestoreSettings }: StoredSettingsTabProps) {
     const [settingsList, setSettingsList] = useState<StoredSetting[]>([]);
     const [loading, setLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
     const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
+    const [scoringExpandedIds, setScoringExpandedIds] = useState<Set<number>>(new Set());
+    const [scoringResults, setScoringResults] = useState<{ [key: number]: ScoringResult[] }>({});
     const [newRecord, setNewRecord] = useState<StoredSetting | null>(null);
 
-    // Fetch stored settings from the backend
     const fetchSettings = async () => {
         setLoading(true);
         try {
@@ -38,20 +64,40 @@ export function StoredSettingsTab() {
         fetchSettings();
     }, []);
 
-    // Toggle expansion of an accordion row
     const toggleExpand = (id: number) => {
         setExpandedIds(prev => {
             const newSet = new Set(prev);
-            if (newSet.has(id)) {
-                newSet.delete(id);
-            } else {
+            if (newSet.has(id)) newSet.delete(id);
+            else newSet.add(id);
+            return newSet;
+        });
+    };
+
+    const toggleScoringExpand = (id: number, source_url: string) => {
+        setScoringExpandedIds(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(id)) newSet.delete(id);
+            else {
                 newSet.add(id);
+                if (!scoringResults[id]) {
+                    fetchScoringResults(source_url, id);
+                }
             }
             return newSet;
         });
     };
 
-    // Update a field of a stored setting
+    const fetchScoringResults = async (source_url: string, settingId: number) => {
+        try {
+            const res = await fetch(`http://localhost:3000/scores/known/${encodeURIComponent(source_url)}`);
+            if (!res.ok) throw new Error('Failed to fetch scoring results');
+            const data = await res.json();
+            setScoringResults(prev => ({ ...prev, [settingId]: data }));
+        } catch (err: any) {
+            console.error(err.message || 'Error fetching scoring results');
+        }
+    };
+
     const handleFieldChange = (id: number, field: keyof AdvancedSettings, value: any) => {
         setSettingsList(prev =>
             prev.map(setting =>
@@ -60,14 +106,12 @@ export function StoredSettingsTab() {
         );
     };
 
-    // Update the source URL for a stored setting
     const handleSourceUrlChange = (id: number, value: string) => {
         setSettingsList(prev =>
             prev.map(setting => (setting.id === id ? { ...setting, source_url: value } : setting))
         );
     };
 
-    // Save changes for an existing stored setting
     const saveSetting = async (setting: StoredSetting) => {
         try {
             const payload = {
@@ -84,20 +128,18 @@ export function StoredSettingsTab() {
             setSettingsList(prev =>
                 prev.map(s => (s.source_url === saved.source_url ? saved : s))
             );
-            toggleExpand(setting.id); // collapse row after saving
+            toggleExpand(setting.id);
         } catch (err: any) {
             alert(err.message || 'Error saving setting');
         }
     };
 
-    // Delete a stored setting
     const deleteSetting = async (setting: StoredSetting) => {
         if (window.confirm(`Are you sure you want to delete settings for ${setting.source_url}?`)) {
             try {
-                const res = await fetch(
-                    `http://localhost:3000/settings?sourceUrl=${encodeURIComponent(setting.source_url)}`,
-                    { method: 'DELETE' }
-                );
+                const res = await fetch(`http://localhost:3000/settings?sourceUrl=${encodeURIComponent(setting.source_url)}`, {
+                    method: 'DELETE'
+                });
                 if (!res.ok) throw new Error('Failed to delete setting');
                 setSettingsList(prev => prev.filter(s => s.id !== setting.id));
             } catch (err: any) {
@@ -106,7 +148,6 @@ export function StoredSettingsTab() {
         }
     };
 
-    // Prepare a new record when adding a new setting
     const addNewSetting = () => {
         setNewRecord({
             id: 0,
@@ -127,7 +168,6 @@ export function StoredSettingsTab() {
         });
     };
 
-    // Save the new setting record
     const saveNewSetting = async () => {
         if (newRecord) {
             try {
@@ -150,7 +190,7 @@ export function StoredSettingsTab() {
         }
     };
 
-    // Render a single stored setting row (accordion style)
+    // Render a single stored setting row with Past Scoring section and a Restore button
     const renderSettingRow = (setting: StoredSetting) => (
         <div key={setting.id} className="border rounded-md">
             <div
@@ -223,6 +263,15 @@ export function StoredSettingsTab() {
                                 className="mt-1 w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500"
                             />
                         </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Expected Events</label>
+                            <input
+                                type="number"
+                                value={setting.settings.expectedEvents || ''}
+                                onChange={(e) => handleFieldChange(setting.id, 'expectedEvents', Number(e.target.value))}
+                                className="mt-1 w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500"
+                            />
+                        </div>
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700">Custom Prompt</label>
@@ -271,12 +320,56 @@ export function StoredSettingsTab() {
                             Delete
                         </button>
                     </div>
+                    {/* Past Scoring Section */}
+                    <div className="mt-6 border-t pt-4">
+                        <div className="flex items-center justify-between cursor-pointer" onClick={() => toggleScoringExpand(setting.id, setting.source_url)}>
+                            <h4 className="text-md font-semibold text-gray-800">Past Scoring Results</h4>
+                            {scoringExpandedIds.has(setting.id) ? <ChevronUp /> : <ChevronDown />}
+                        </div>
+                        {scoringExpandedIds.has(setting.id) && (
+                            <div className="mt-3 space-y-3">
+                                {scoringResults[setting.id] && scoringResults[setting.id].length > 0 ? (
+                                    scoringResults[setting.id].map(result => (
+                                        <div key={result.id} className="border p-3 rounded-md">
+                                            <div className="flex items-center justify-between">
+                                                <span className="font-medium">Score:</span>
+                                                <span className={`px-2 py-1 rounded text-white ${getScoreColor(result.score_data.score)}`}>
+                          {(result.score_data.score * 100).toFixed(0)}%
+                        </span>
+                                            </div>
+                                            <div className="mt-1 text-xs text-gray-600">
+                                                Accuracy: {(result.score_data.accuracy * 100).toFixed(0)}%, Completeness: {(result.score_data.completeness * 100).toFixed(0)}%
+                                            </div>
+                                            <div className="mt-1 text-xs text-gray-500">
+                                                Calculated At: {new Date(result.calculated_at).toLocaleString()}
+                                            </div>
+                                            {result.score_data.settings && (
+                                                <div className="mt-2">
+                          <pre className="p-2 bg-gray-50 border rounded text-xs overflow-x-auto">
+                            {JSON.stringify(result.score_data.settings, null, 2)}
+                          </pre>
+                                                    <button
+                                                        onClick={() => onRestoreSettings(result.score_data.settings!)}
+                                                        className="mt-1 inline-flex items-center px-3 py-1 bg-blue-600 text-white text-sm font-medium rounded shadow hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                                                    >
+                                                        <RefreshCw size={16} className="mr-1"/>
+                                                        Restore Prompt Settings
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))
+                                ) : (
+                                    <p className="text-sm text-gray-500">No scoring results available.</p>
+                                )}
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
         </div>
     );
 
-    // Render the new record form inline when adding a new setting.
     const renderNewRecordForm = () => (
         <div className="border rounded-md mt-4">
             <div className="flex items-center justify-between bg-green-100 px-4 py-2">
@@ -361,6 +454,20 @@ export function StoredSettingsTab() {
                                 setNewRecord({
                                     ...newRecord!,
                                     settings: { ...newRecord!.settings, gptModel: e.target.value },
+                                })
+                            }
+                            className="mt-1 w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700">Expected Events</label>
+                        <input
+                            type="number"
+                            value={newRecord!.settings.expectedEvents || ''}
+                            onChange={(e) =>
+                                setNewRecord({
+                                    ...newRecord!,
+                                    settings: { ...newRecord!.settings, expectedEvents: Number(e.target.value) },
                                 })
                             }
                             className="mt-1 w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500"

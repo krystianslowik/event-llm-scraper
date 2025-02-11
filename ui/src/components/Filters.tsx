@@ -1,4 +1,3 @@
-import React from 'react';
 import { Search, Tag } from 'lucide-react';
 
 interface FiltersProps {

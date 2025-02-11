@@ -1,4 +1,4 @@
-// AdvancedSettingsModal.tsx
+/* Updated AdvancedSettingsModal.tsx */
 import React, { useMemo, useState } from 'react';
 import { X, Info } from 'lucide-react';
 import type { AdvancedSettings } from '../App';
@@ -8,6 +8,7 @@ interface AdvancedSettingsModalProps {
     settings: AdvancedSettings;
     onChange: (newSettings: AdvancedSettings) => void;
     onClose: () => void;
+    // We'll use onChange as the restore callback
 }
 
 const fieldDescriptions: { [key in keyof AdvancedSettings]?: string } = {
@@ -26,7 +27,9 @@ const fieldDescriptions: { [key in keyof AdvancedSettings]?: string } = {
     showEventsWithoutLinks:
         "Wenn aktiviert, werden auch Elemente ohne Links als Events extrahiert. Die URL wird dann auf die Hauptseite gesetzt.",
     iterateIframes:
-        "Wenn aktiviert, wird der Inhalt aller Iframes geladen und dem Hauptinhalt hinzugefügt."
+        "Wenn aktiviert, wird der Inhalt aller Iframes geladen und dem Hauptinhalt hinzugefügt.",
+    expectedEvents:
+        "Die erwartete Anzahl an Events, falls bekannt. Dieser Wert wird zur Berechnung des Scores genutzt."
 };
 
 function Tooltip({ text, children }: { text: string; children: React.ReactNode }) {
@@ -69,6 +72,9 @@ export function AdvancedSettingsModal({ settings, onChange, onClose }: AdvancedS
         if (settings.customPrompt.trim()) {
             previewItems.push({ label: 'Custom Prompt', value: settings.customPrompt });
         }
+        if (settings.expectedEvents !== undefined && settings.expectedEvents !== null) {
+            previewItems.push({ label: 'Expected Events', value: settings.expectedEvents.toString() });
+        }
         return previewItems;
     }, [settings]);
 
@@ -85,6 +91,7 @@ export function AdvancedSettingsModal({ settings, onChange, onClose }: AdvancedS
             categorySet: 'Category Set',
             customPrompt: 'Custom Prompt',
             gptModel: 'GPT Model',
+            expectedEvents: 'Expected Events'
         };
         return (
             <div className="space-y-1">
@@ -123,38 +130,33 @@ export function AdvancedSettingsModal({ settings, onChange, onClose }: AdvancedS
                 {renderField('maxCombinedSize', 'number')}
                 {renderField('categorySet', 'text')}
                 {renderField('gptModel', 'text')}
-                <div className="flex items-center justify-between p-4 border rounded-md">
-                    <div>
-                        <div className="flex items-center">
-                            <span className="text-sm font-medium text-gray-700">Elemente ohne Links einbeziehen</span>
-                            <Tooltip text={fieldDescriptions.showEventsWithoutLinks || ''}>
-                                <Info size={12} className="text-gray-400 ml-1" />
-                            </Tooltip>
-                        </div>
-                        <p className="text-xs text-gray-500">Aktivieren, um auch Events ohne Links zu erfassen.</p>
-                    </div>
-                    <ToggleSwitch
-                        enabled={settings.showEventsWithoutLinks}
-                        onToggle={(value) => onChange({ ...settings, showEventsWithoutLinks: value })}
-                    />
-                </div>
-                <div className="flex items-center justify-between p-4 border rounded-md">
-                    <div>
-                        <div className="flex items-center">
-                            <span className="text-sm font-medium text-gray-700">Iframe-Inhalt einbeziehen</span>
-                            <Tooltip text={fieldDescriptions.iterateIframes || ''}>
-                                <Info size={12} className="text-gray-400 ml-1" />
-                            </Tooltip>
-                        </div>
-                        <p className="text-xs text-gray-500">Aktivieren, um den Inhalt von Iframes zu laden.</p>
-                    </div>
-                    <ToggleSwitch
-                        enabled={settings.iterateIframes}
-                        onToggle={(value) => onChange({ ...settings, iterateIframes: value })}
-                    />
-                </div>
+                {renderField('expectedEvents', 'number')}
             </div>
             <div className="mt-4">{renderField('customPrompt', 'textarea')}</div>
+            <div className="mt-6 flex items-center justify-between">
+                <div className="flex items-center">
+                    <span className="text-sm font-medium text-gray-700">Elemente ohne Links einbeziehen</span>
+                    <Tooltip text={fieldDescriptions.showEventsWithoutLinks || ''}>
+                        <Info size={12} className="text-gray-400 ml-1" />
+                    </Tooltip>
+                </div>
+                <ToggleSwitch
+                    enabled={settings.showEventsWithoutLinks}
+                    onToggle={(value) => onChange({ ...settings, showEventsWithoutLinks: value })}
+                />
+            </div>
+            <div className="mt-4 flex items-center justify-between">
+                <div className="flex items-center">
+                    <span className="text-sm font-medium text-gray-700">Iframe-Inhalt einbeziehen</span>
+                    <Tooltip text={fieldDescriptions.iterateIframes || ''}>
+                        <Info size={12} className="text-gray-400 ml-1" />
+                    </Tooltip>
+                </div>
+                <ToggleSwitch
+                    enabled={settings.iterateIframes}
+                    onToggle={(value) => onChange({ ...settings, iterateIframes: value })}
+                />
+            </div>
             <div className="mt-6">
                 <h4 className="text-sm font-medium text-gray-700 mb-2">Query Preview</h4>
                 <div className="bg-gray-100 p-4 rounded text-sm text-gray-700 max-h-48 overflow-y-auto whitespace-pre-wrap break-words">
@@ -183,7 +185,7 @@ export function AdvancedSettingsModal({ settings, onChange, onClose }: AdvancedS
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50 p-4">
-            <div className="bg-white rounded-xl p-6 w-full max-w-4xl shadow-lg">
+            <div className="bg-white rounded-xl p-6 w-full max-w-4xl shadow-lg max-h-[90vh] overflow-y-auto">
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="text-2xl font-semibold text-gray-800">Erweiterte Einstellungen</h3>
                     <button onClick={onClose} className="text-gray-600 hover:text-gray-900">
@@ -210,11 +212,11 @@ export function AdvancedSettingsModal({ settings, onChange, onClose }: AdvancedS
                                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                             }`}
                         >
-                            Stored Settings
+                            Stored Settings & Scores
                         </button>
                     </nav>
                 </div>
-                {activeTab === 'default' ? defaultSettingsForm : <StoredSettingsTab />}
+                {activeTab === 'default' ? defaultSettingsForm : <StoredSettingsTab onRestoreSettings={onChange} />}
             </div>
         </div>
     );
