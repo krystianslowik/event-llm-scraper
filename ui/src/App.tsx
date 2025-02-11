@@ -28,7 +28,7 @@ export interface AdvancedSettings {
   gptModel: string;
   showEventsWithoutLinks: boolean;
   iterateIframes: boolean;
-  expectedEvents: string;
+  expectedEvents: string | number;
 }
 
 export default function App() {

@@ -1,4 +1,3 @@
-/* Updated AdvancedSettingsModal.tsx */
 import React, { useMemo, useState } from 'react';
 import { X, Info } from 'lucide-react';
 import type { AdvancedSettings } from '../App';
@@ -8,7 +7,6 @@ interface AdvancedSettingsModalProps {
     settings: AdvancedSettings;
     onChange: (newSettings: AdvancedSettings) => void;
     onClose: () => void;
-    // We'll use onChange as the restore callback
 }
 
 const fieldDescriptions: { [key in keyof AdvancedSettings]?: string } = {
@@ -36,7 +34,7 @@ function Tooltip({ text, children }: { text: string; children: React.ReactNode }
     return (
         <div className="relative inline-block group">
             {children}
-            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-max max-w-xs px-2 py-1 bg-gray-700 text-white text-xs rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity duration-200 z-10">
+            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-700 text-white text-xs rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity duration-200 z-10">
                 {text}
             </div>
         </div>
@@ -48,7 +46,9 @@ function ToggleSwitch({ enabled, onToggle }: { enabled: boolean; onToggle: (valu
         <button
             type="button"
             onClick={() => onToggle(!enabled)}
-            className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${enabled ? 'bg-blue-600' : 'bg-gray-300'}`}
+            className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                enabled ? 'bg-blue-600' : 'bg-gray-300'
+            }`}
         >
             <span className="sr-only">Toggle</span>
             <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${enabled ? 'translate-x-6' : 'translate-x-1'}`} />
@@ -69,7 +69,8 @@ export function AdvancedSettingsModal({ settings, onChange, onClose }: AdvancedS
             { label: 'Elemente ohne Links', value: settings.showEventsWithoutLinks ? 'Ja' : 'Nein' },
             { label: 'Iframe-Inhalt einbeziehen', value: settings.iterateIframes ? 'Ja' : 'Nein' },
         ];
-        if (settings.customPrompt.trim()) {
+        // Use an empty string fallback in case customPrompt is null
+        if ((settings.customPrompt || "").trim()) {
             previewItems.push({ label: 'Custom Prompt', value: settings.customPrompt });
         }
         if (settings.expectedEvents !== undefined && settings.expectedEvents !== null) {
@@ -95,7 +96,7 @@ export function AdvancedSettingsModal({ settings, onChange, onClose }: AdvancedS
         };
         return (
             <div className="space-y-1">
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-semibold text-gray-700">
                     {labelMap[fieldKey]}
                     <Tooltip text={description}>
                         <Info size={12} className="text-gray-400 inline-block ml-1" />
@@ -122,50 +123,60 @@ export function AdvancedSettingsModal({ settings, onChange, onClose }: AdvancedS
         );
     };
 
-    const defaultSettingsForm = (
-        <>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    const textSettings = (
+        <fieldset className="border border-gray-200 rounded-md p-4">
+            <legend className="px-2 text-sm font-bold text-gray-700">Text Settings</legend>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
                 {renderField('minTextLength', 'number')}
                 {renderField('maxTextLength', 'number')}
                 {renderField('maxCombinedSize', 'number')}
+            </div>
+        </fieldset>
+    );
+
+    const modelSettings = (
+        <fieldset className="border border-gray-200 rounded-md p-4 mt-4">
+            <legend className="px-2 text-sm font-bold text-gray-700">Event & Model Settings</legend>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
                 {renderField('categorySet', 'text')}
                 {renderField('gptModel', 'text')}
                 {renderField('expectedEvents', 'number')}
             </div>
             <div className="mt-4">{renderField('customPrompt', 'textarea')}</div>
-            <div className="mt-6 flex items-center justify-between">
-                <div className="flex items-center">
-                    <span className="text-sm font-medium text-gray-700">Elemente ohne Links einbeziehen</span>
-                    <Tooltip text={fieldDescriptions.showEventsWithoutLinks || ''}>
-                        <Info size={12} className="text-gray-400 ml-1" />
-                    </Tooltip>
+        </fieldset>
+    );
+
+    const defaultSettingsForm = (
+        <>
+            {textSettings}
+            {modelSettings}
+            <div className="mt-4 flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0">
+                <div className="flex items-center space-x-2">
+                    <span className="text-sm font-semibold text-gray-700">Elemente ohne Links einbeziehen</span>
+                    <ToggleSwitch
+                        enabled={settings.showEventsWithoutLinks}
+                        onToggle={(value) => onChange({ ...settings, showEventsWithoutLinks: value })}
+                    />
                 </div>
-                <ToggleSwitch
-                    enabled={settings.showEventsWithoutLinks}
-                    onToggle={(value) => onChange({ ...settings, showEventsWithoutLinks: value })}
-                />
-            </div>
-            <div className="mt-4 flex items-center justify-between">
-                <div className="flex items-center">
-                    <span className="text-sm font-medium text-gray-700">Iframe-Inhalt einbeziehen</span>
-                    <Tooltip text={fieldDescriptions.iterateIframes || ''}>
-                        <Info size={12} className="text-gray-400 ml-1" />
-                    </Tooltip>
+                <div className="flex items-center space-x-2">
+                    <span className="text-sm font-semibold text-gray-700">Iframe-Inhalt einbeziehen</span>
+                    <ToggleSwitch
+                        enabled={settings.iterateIframes}
+                        onToggle={(value) => onChange({ ...settings, iterateIframes: value })}
+                    />
                 </div>
-                <ToggleSwitch
-                    enabled={settings.iterateIframes}
-                    onToggle={(value) => onChange({ ...settings, iterateIframes: value })}
-                />
             </div>
             <div className="mt-6">
-                <h4 className="text-sm font-medium text-gray-700 mb-2">Query Preview</h4>
-                <div className="bg-gray-100 p-4 rounded text-sm text-gray-700 max-h-48 overflow-y-auto whitespace-pre-wrap break-words">
-                    {queryPreview.map(({ label, value }, idx) => (
-                        <div key={idx} className="flex justify-between border-b border-gray-200 py-1 last:border-0">
-                            <span className="font-medium">{label}:</span>
-                            <span className="text-gray-600 ml-2">{value}</span>
-                        </div>
-                    ))}
+                <h4 className="text-sm font-bold text-gray-700 mb-2">Query Preview</h4>
+                <div className="relative">
+                    <div className="bg-gray-100 p-4 rounded-md text-sm text-gray-800 max-h-48 overflow-y-auto whitespace-pre-wrap break-words">
+                        {queryPreview.map(({ label, value }, idx) => (
+                            <div key={idx} className="flex justify-between border-b border-gray-200 py-1 last:border-0">
+                                <span className="font-medium">{label}:</span>
+                                <span>{value}</span>
+                            </div>
+                        ))}
+                    </div>
                 </div>
                 <p className="text-xs text-gray-500 mt-2">
                     Diese Vorschau zeigt die aktuellen API-Parameter in einer lesbaren Form.
@@ -175,7 +186,7 @@ export function AdvancedSettingsModal({ settings, onChange, onClose }: AdvancedS
                 <button
                     type="button"
                     onClick={onClose}
-                    className="px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+                    className="px-6 py-2 text-sm font-bold text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 transition-colors"
                 >
                     Speichern & Schließen
                 </button>
@@ -187,29 +198,25 @@ export function AdvancedSettingsModal({ settings, onChange, onClose }: AdvancedS
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50 p-4">
             <div className="bg-white rounded-xl p-6 w-full max-w-4xl shadow-lg max-h-[90vh] overflow-y-auto">
                 <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-2xl font-semibold text-gray-800">Erweiterte Einstellungen</h3>
+                    <h3 className="text-2xl font-bold text-gray-800">Erweiterte Einstellungen</h3>
                     <button onClick={onClose} className="text-gray-600 hover:text-gray-900">
                         <X size={24} />
                     </button>
                 </div>
-                <div className="mb-4 border-b border-gray-200">
-                    <nav className="-mb-px flex space-x-8">
+                <div className="sticky top-0 bg-white z-10 mb-4 border-b border-gray-200">
+                    <nav className="flex">
                         <button
                             onClick={() => setActiveTab('default')}
-                            className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
-                                activeTab === 'default'
-                                    ? 'border-blue-600 text-blue-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            className={`py-4 px-6 border-b-2 text-sm font-bold transition-colors ${
+                                activeTab === 'default' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
                             }`}
                         >
                             Default Settings
                         </button>
                         <button
                             onClick={() => setActiveTab('stored')}
-                            className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
-                                activeTab === 'stored'
-                                    ? 'border-blue-600 text-blue-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            className={`py-4 px-6 border-b-2 text-sm font-bold transition-colors ${
+                                activeTab === 'stored' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
                             }`}
                         >
                             Stored Settings & Scores
