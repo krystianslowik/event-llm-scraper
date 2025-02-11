@@ -35,3 +35,4 @@ src/environments/environment.*.ts
 *.sublime-project
 
 /ui_old/*
+.env

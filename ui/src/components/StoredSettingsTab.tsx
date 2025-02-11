@@ -1,6 +1,7 @@
 import  { useEffect, useState } from 'react';
 import { ChevronDown, ChevronUp, RefreshCw, X, Edit2, Plus } from 'lucide-react';
 import type { AdvancedSettings } from '../App';
+import {API_URL} from "../config.ts";
 
 interface StoredSetting {
     id: number;
@@ -48,7 +49,7 @@ export function StoredSettingsTab({}: StoredSettingsTabProps) {
     const fetchSettings = async () => {
         setLoading(true);
         try {
-            const res = await fetch('http://localhost:3000/settings-all');
+            const res = await fetch(`${API_URL}/settings-all`);
             if (!res.ok) throw new Error('Failed to fetch settings');
             const data = await res.json();
             setSettingsList(data);
@@ -96,7 +97,7 @@ export function StoredSettingsTab({}: StoredSettingsTabProps) {
 
     const fetchScoringResults = async (source_url: string, settingId: number) => {
         try {
-            const res = await fetch(`http://localhost:3000/scores/known/${encodeURIComponent(source_url)}`);
+            const res = await fetch(`${API_URL}/scores/known/${encodeURIComponent(source_url)}`);
             if (!res.ok) throw new Error('Failed to fetch scoring results');
             const data = await res.json();
             setScoringResults(prev => ({ ...prev, [settingId]: data }));
@@ -126,7 +127,7 @@ export function StoredSettingsTab({}: StoredSettingsTabProps) {
                 settings: setting.settings,
                 expectedEvents: setting.settings.expectedEvents, // <-- Added here
             };
-            const res = await fetch('http://localhost:3000/settings', {
+            const res = await fetch(`${API_URL}/settings`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
@@ -146,7 +147,7 @@ export function StoredSettingsTab({}: StoredSettingsTabProps) {
     const deleteSetting = async (setting: StoredSetting) => {
         if (window.confirm(`Are you sure you want to delete settings for ${setting.source_url}?`)) {
             try {
-                const res = await fetch(`http://localhost:3000/settings?sourceUrl=${encodeURIComponent(setting.source_url)}`, {
+                const res = await fetch(`${API_URL}/settings?sourceUrl=${encodeURIComponent(setting.source_url)}`, {
                     method: 'DELETE'
                 });
                 if (!res.ok) throw new Error('Failed to delete setting');
@@ -186,7 +187,7 @@ export function StoredSettingsTab({}: StoredSettingsTabProps) {
                     settings: newRecord.settings,
                     expectedEvents: newRecord.settings.expectedEvents, // <-- Added here
                 };
-                const res = await fetch('http://localhost:3000/settings', {
+                const res = await fetch(`${API_URL}/settings`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload),

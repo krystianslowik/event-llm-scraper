@@ -9,6 +9,7 @@ import { URLStatus as URLStatusComponent } from './components/URLStatus';
 import { ViewSwitch } from './components/ViewSwitch';
 import { ExportCSVButton } from './components/ExportCSVButton';
 import type { Event, URLStatus, APIResponse } from './types';
+import {API_URL} from "./config.ts";
 
 type SortConfig = {
   key: keyof Event;
@@ -114,7 +115,7 @@ export default function App() {
   const setupEventSource = (url: string) => {
     cleanupEventSource(url);
     const encodedUrl = encodeURIComponent(url);
-    const eventSource = new EventSource(`http://localhost:3000/events-stream?url=${encodedUrl}`);
+    const eventSource = new EventSource(`${API_URL}/events-stream?url=${encodedUrl}`);
     eventSource.onmessage = (event) => {
       try {
         const updatedData = JSON.parse(event.data) as APIResponse;
@@ -169,7 +170,7 @@ export default function App() {
     for (const url of urls) {
       try {
         const encodedUrl = encodeURIComponent(url);
-        let fetchUrl = `http://localhost:3000/events?url=${encodedUrl}`;
+        let fetchUrl = `${API_URL}/events?url=${encodedUrl}`;
         fetchUrl += `&minTextLength=${advancedSettings.minTextLength}`;
         fetchUrl += `&maxTextLength=${advancedSettings.maxTextLength}`;
         fetchUrl += `&maxCombinedSize=${advancedSettings.maxCombinedSize}`;
