@@ -1,6 +1,8 @@
 FROM node:20
 
 WORKDIR /app
+
+# Install required OS dependencies
 RUN apt-get update && \
     apt-get install -y \
     libnss3 \
@@ -21,9 +23,18 @@ RUN apt-get update && \
     libatspi2.0-0 \
     libwayland-client0
 
+# Copy package files and install dependencies (including devDependencies)
 COPY package*.json ./
-RUN npm install
-COPY . .
-RUN ls -la .
+RUN npm install --include=dev
 
-CMD ["sh", "-c", "npx playwright install chromium && node src/server.js"]
+# Install ts-node globally
+RUN npm install -g ts-node
+
+# Copy the entire project
+COPY . .
+
+# Debug: list all files to confirm our project structure
+RUN find . -type f
+
+# Run migrations, install Chromium via Playwright, then start the server using ts-node.
+CMD ["sh", "-c", "ls -la && npx playwright install chromium && npx knex migrate:latest && ts-node src/server.ts"]

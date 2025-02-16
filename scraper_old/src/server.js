@@ -16,7 +16,6 @@ const clients = new Map()
 async function setupServer() {
     const repository = await new EventsRepository(db).initialize()
 
-    // SSE Endpoint to subscribe to event updates for a specific URL.
     app.get('/events-stream', async (req, res) => {
         const sourceUrl = req.query.url
         if (!sourceUrl) {

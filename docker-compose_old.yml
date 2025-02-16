@@ -1,4 +1,20 @@
 services:
+  #  ollama:
+  #    image: ollama/ollama:latest
+  #    ports:
+  #      - "11434:11434"
+  #    volumes:
+  #      - .:/code
+  #      - ./ollama:/root/.ollama
+  #    container_name: ollama
+  #    tty: true
+  #    environment:
+  #      - OLLAMA_KEEP_ALIVE=24h
+  #      - OLLAMA_HOST=0.0.0.0
+  #    entrypoint: ["sh", "/root/.ollama/entrypoint.sh"]
+  #    networks:
+  #      - shared_network
+
   postgres:
     image: postgres:16
     container_name: scraper_db
@@ -18,11 +34,11 @@ services:
       timeout: 5s
       retries: 5
 
-  scraper_ts:
-    build: scraper
+  scraper:
+    build: scraper_old
     container_name: playwright_scraper
     volumes:
-      - ./scraper:/app
+      - ./scraper_old:/app
     ports:
       - "3000:3000"
     environment:
@@ -34,6 +50,7 @@ services:
       PG_PASSWORD: ${PG_PASSWORD}
       PG_PORT: 5432
     working_dir: /app
+    command: [ "/bin/sh", "-c", "npm install && npx playwright install chromium && npx knex migrate:latest && node src/server.js" ]
     restart: on-failure
     networks:
       - shared_network
@@ -46,7 +63,7 @@ services:
     container_name: ui_react
     working_dir: /app
     volumes:
-      - ./ui:/app
+      - ./ui_old:/app
     ports:
       - "5173:5173"
     command: [ "/bin/sh", "-c", "npm install && npm run dev" ]
