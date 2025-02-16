@@ -1,4 +1,3 @@
-import React from 'react';
 import { LayoutGrid, Table as TableIcon } from 'lucide-react';
 
 interface ViewSwitchProps {

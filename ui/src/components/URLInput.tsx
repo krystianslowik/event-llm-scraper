@@ -1,8 +1,8 @@
-// URLInput.tsx
 import React, { useState } from 'react';
 import { Link as LinkIcon, FileText, Sliders } from 'lucide-react';
 import type { AdvancedSettings } from '../App';
 import { AdvancedSettingsModal } from './AdvancedSettingsModal';
+import { DEFAULT_SETTINGS } from '../config/settings';
 
 interface URLInputProps {
   onSubmit: (urls: string[], advancedSettings: AdvancedSettings) => void;
@@ -14,17 +14,7 @@ export function URLInput({ onSubmit, isLoading }: URLInputProps) {
   const [singleUrl, setSingleUrl] = useState('');
   const [batchUrls, setBatchUrls] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [advancedSettings, setAdvancedSettings] = useState<AdvancedSettings>({
-    minTextLength: 25,
-    maxTextLength: 4000,
-    maxCombinedSize: 4000,
-    categorySet:
-        "Familienleben, Aktivitäten, Veranstaltungen, Essen/Rezepte, Münsterland, Kultur/Lifestyle, Gesundheit, Reisen, Einkaufen, Gemeinschaft, Tipps & Ratgeber",
-    customPrompt: '',
-    gptModel: 'gpt-4o-mini',
-    showEventsWithoutLinks: false,
-    iterateIframes: false,
-  });
+  const [advancedSettings, setAdvancedSettings] = useState<AdvancedSettings>(DEFAULT_SETTINGS);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

@@ -49,7 +49,7 @@ export function StoredSettingsTab({}: StoredSettingsTabProps) {
     const fetchSettings = async () => {
         setLoading(true);
         try {
-            const res = await fetch(`${API_URL}/settings-all`);
+            const res = await fetch(`${API_URL}/settings/all`);
             if (!res.ok) throw new Error('Failed to fetch settings');
             const data = await res.json();
             setSettingsList(data);

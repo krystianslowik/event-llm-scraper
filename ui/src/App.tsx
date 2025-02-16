@@ -115,7 +115,7 @@ export default function App() {
   const setupEventSource = (url: string) => {
     cleanupEventSource(url);
     const encodedUrl = encodeURIComponent(url);
-    const eventSource = new EventSource(`${API_URL}/events-stream?url=${encodedUrl}`);
+    const eventSource = new EventSource(`${API_URL}/events/stream?url=${encodedUrl}`);
     eventSource.onmessage = (event) => {
       try {
         const updatedData = JSON.parse(event.data) as APIResponse;

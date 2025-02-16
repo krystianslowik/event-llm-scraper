@@ -1,4 +1,3 @@
-import React from 'react';
 import { ArrowUpDown, Calendar, Link as LinkIcon, Clock } from 'lucide-react';
 import { Event } from '../types';
 
@@ -62,7 +61,6 @@ export function EventsTable({ events, sortConfig, onSort }: EventsTableProps) {
         </thead>
         <tbody className="divide-y divide-gray-100">
           {events.map((event, index) => {
-            const date = new Date(event.date);
             const formattedDate = new Date(event.date).toLocaleDateString('de-DE', {
               year: 'numeric',
               month: 'long',

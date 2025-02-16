@@ -1,6 +1,3 @@
-
-import React from 'react';
-
 interface ExportCSVButtonProps {
     data: any[];
     filename?: string;
