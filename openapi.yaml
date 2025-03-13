@@ -1,0 +1,444 @@
+openapi: 3.0.0
+info:
+  title: EventScraper API
+  description: API for scraping, storing, and retrieving event data from websites
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+
+paths:
+  /events/stream:
+    get:
+      summary: Stream events from a URL in real-time
+      description: Creates a server-sent events (SSE) stream for real-time event updates from a specific URL
+      tags:
+        - Events
+      parameters:
+        - in: query
+          name: url
+          required: true
+          schema:
+            type: string
+          description: Source URL to scrape events from
+        - in: query
+          name: minTextLength
+          schema:
+            type: integer
+            default: 25
+          description: Minimum text length for event extraction
+        - in: query
+          name: maxTextLength
+          schema:
+            type: integer
+            default: 4000
+          description: Maximum text length for event extraction
+        - in: query
+          name: maxCombinedSize
+          schema:
+            type: integer
+            default: 4000
+          description: Maximum combined size for event extraction
+        - in: query
+          name: categorySet
+          schema:
+            type: string
+            default: "Familienleben, Aktivitäten, Veranstaltungen, Essen/Rezepte, Münsterland, Kultur/Lifestyle, Gesundheit, Reisen, Einkaufen, Gemeinschaft, Tipps & Ratgeber"
+          description: Comma-separated list of categories
+        - in: query
+          name: prompt
+          schema:
+            type: string
+          description: Custom prompt for event extraction
+        - in: query
+          name: gptModel
+          schema:
+            type: string
+            default: "gpt-4o-mini"
+          description: GPT model to use for extraction
+        - in: query
+          name: showEventsWithoutLinks
+          schema:
+            type: boolean
+            default: false
+          description: Whether to include events without links
+        - in: query
+          name: iterateIframes
+          schema:
+            type: boolean
+            default: false
+          description: Whether to iterate through iframes
+      responses:
+        '200':
+          description: Server-sent events stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: Stream of event data and status updates
+        '400':
+          description: Bad request - Missing URL parameter
+        '500':
+          description: Server error
+
+  /events/:
+    get:
+      summary: Get events from a URL
+      description: Retrieves events from a specific URL, triggering scraping if needed
+      tags:
+        - Events
+      parameters:
+        - in: query
+          name: url
+          required: true
+          schema:
+            type: string
+          description: Source URL to scrape events from
+        - in: query
+          name: minTextLength
+          schema:
+            type: integer
+            default: 25
+          description: Minimum text length for event extraction
+        - in: query
+          name: maxTextLength
+          schema:
+            type: integer
+            default: 4000
+          description: Maximum text length for event extraction
+        - in: query
+          name: maxCombinedSize
+          schema:
+            type: integer
+            default: 4000
+          description: Maximum combined size for event extraction
+        - in: query
+          name: categorySet
+          schema:
+            type: string
+            default: "Familienleben, Aktivitäten, Veranstaltungen, Essen/Rezepte, Münsterland, Kultur/Lifestyle, Gesundheit, Reisen, Einkaufen, Gemeinschaft, Tipps & Ratgeber"
+          description: Comma-separated list of categories
+        - in: query
+          name: prompt
+          schema:
+            type: string
+          description: Custom prompt for event extraction
+        - in: query
+          name: gptModel
+          schema:
+            type: string
+            default: "gpt-4o-mini"
+          description: GPT model to use for extraction
+        - in: query
+          name: showEventsWithoutLinks
+          schema:
+            type: boolean
+            default: false
+          description: Whether to include events without links
+        - in: query
+          name: iterateIframes
+          schema:
+            type: boolean
+            default: false
+          description: Whether to iterate through iframes
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Event'
+                  status:
+                    type: string
+                    enum: [cached, fetched, error]
+                    description: Status of the response (cached from db, freshly fetched, or error)
+                  jobId:
+                    type: integer
+                    nullable: true
+                    description: Job ID if a background scraping job was triggered
+        '400':
+          description: Bad request - Missing URL parameter
+        '500':
+          description: Server error
+
+  /settings/all:
+    get:
+      summary: Get all stored settings
+      description: Retrieves all stored source settings
+      tags:
+        - Settings
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SettingsRecord'
+        '500':
+          description: Server error
+
+  /settings/:
+    get:
+      summary: Get settings for a specific URL
+      description: Retrieves settings for a specific source URL
+      tags:
+        - Settings
+      parameters:
+        - in: query
+          name: sourceUrl
+          required: true
+          schema:
+            type: string
+          description: Source URL to get settings for
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettingsRecord'
+        '400':
+          description: Bad request - Missing sourceUrl parameter
+        '404':
+          description: No settings found for the given sourceUrl
+        '500':
+          description: Server error
+    
+    post:
+      summary: Create or update settings
+      description: Creates or updates settings for a source URL
+      tags:
+        - Settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - sourceUrl
+                - settings
+              properties:
+                sourceUrl:
+                  type: string
+                  description: Source URL to save settings for
+                settings:
+                  $ref: '#/components/schemas/Settings'
+                expectedEvents:
+                  type: integer
+                  description: Expected number of events for this source
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettingsRecord'
+        '400':
+          description: Bad request - Missing sourceUrl or settings
+        '500':
+          description: Server error
+    
+    delete:
+      summary: Delete settings for a URL
+      description: Deletes settings for a specific source URL
+      tags:
+        - Settings
+      parameters:
+        - in: query
+          name: sourceUrl
+          required: true
+          schema:
+            type: string
+          description: Source URL to delete settings for
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+        '400':
+          description: Bad request - Missing sourceUrl parameter
+        '404':
+          description: No settings found for the given sourceUrl
+        '500':
+          description: Server error
+
+  /scores/known/{url}:
+    get:
+      summary: Get known scores for a URL
+      description: Retrieves known scores for a specific URL
+      tags:
+        - Scores
+      parameters:
+        - in: path
+          name: url
+          required: true
+          schema:
+            type: string
+          description: URL encoded source URL
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Score'
+        '500':
+          description: Server error
+
+  /scores/unknown/{url}:
+    get:
+      summary: Get unknown scores for a URL
+      description: Retrieves unknown scores and calculates consensus for a specific URL
+      tags:
+        - Scores
+      parameters:
+        - in: path
+          name: url
+          required: true
+          schema:
+            type: string
+          description: URL encoded source URL
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  median:
+                    type: number
+                    description: Median score value
+                  scores:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Score'
+        '500':
+          description: Server error
+
+components:
+  schemas:
+    Event:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the event
+        title:
+          type: string
+          description: Event title
+        date:
+          type: string
+          description: Event date
+        location:
+          type: string
+          description: Event location
+        description:
+          type: string
+          description: Event description
+        link:
+          type: string
+          description: Link to event details
+        category:
+          type: string
+          description: Event category
+        sourceUrl:
+          type: string
+          description: Source URL where the event was found
+
+    Settings:
+      type: object
+      properties:
+        minTextLength:
+          type: integer
+          default: 25
+          description: Minimum text length for event extraction
+        maxTextLength:
+          type: integer
+          default: 4000
+          description: Maximum text length for event extraction
+        maxCombinedSize:
+          type: integer
+          default: 4000
+          description: Maximum combined size for event extraction
+        categorySet:
+          type: string
+          default: "Familienleben, Aktivitäten, Veranstaltungen, Essen/Rezepte, Münsterland, Kultur/Lifestyle, Gesundheit, Reisen, Einkaufen, Gemeinschaft, Tipps & Ratgeber"
+          description: Comma-separated list of categories
+        customPrompt:
+          type: string
+          nullable: true
+          description: Custom prompt for event extraction
+        gptModel:
+          type: string
+          default: "gpt-4o-mini"
+          description: GPT model to use for extraction
+        showEventsWithoutLinks:
+          type: boolean
+          default: false
+          description: Whether to include events without links
+        iterateIframes:
+          type: boolean
+          default: false
+          description: Whether to iterate through iframes
+
+    SettingsRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Unique identifier for the settings record
+        source_url:
+          type: string
+          description: Source URL the settings apply to
+        settings:
+          $ref: '#/components/schemas/Settings'
+        expected_events:
+          type: integer
+          nullable: true
+          description: Expected number of events for this source
+        created_at:
+          type: string
+          format: date-time
+          description: When the settings were created
+        updated_at:
+          type: string
+          format: date-time
+          description: When the settings were last updated
+
+    Score:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Unique identifier for the score record
+        source_url:
+          type: string
+          description: Source URL the score applies to
+        score:
+          type: number
+          description: Score value for the source
+        is_known:
+          type: boolean
+          description: Whether this is a known (verified) score
+        created_at:
+          type: string
+          format: date-time
+          description: When the score was created
