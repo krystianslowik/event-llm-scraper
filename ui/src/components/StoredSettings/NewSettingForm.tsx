@@ -1,7 +1,7 @@
 import { X, Save, Download } from 'lucide-react';
 import type { StoredSetting } from './types';
 import { DEFAULT_SETTINGS } from '../../config/settings';
-import { FormInput, FormTextArea, FormCheckbox, FormFieldset } from './FormElements';
+import { FormInput, FormCheckbox, FormFieldset } from './FormElements';
 import { useState, useEffect } from 'react';
 
 interface NewSettingFormProps {
