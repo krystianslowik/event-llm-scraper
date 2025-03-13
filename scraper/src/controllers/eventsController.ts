@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import db from "../db/db";
 import { getRepository, activeJobs, clients } from '../services/eventsService';
 import { extractEventsFromUrl } from '../modules/eventExtractor';
+import { saveSettings } from '../services/settingsService';
 
 interface EffectiveSettings {
     minTextLength: number;
@@ -20,6 +21,8 @@ function parseBoolean(value: any): boolean {
 
 async function getEffectiveSettings(sourceUrl: string, query: any): Promise<EffectiveSettings> {
     let effectiveSettings: EffectiveSettings;
+    let isNewUrl = false;
+    
     try {
         const storedSettingsRecord = await db('source_settings')
             .where({ source_url: sourceUrl })
@@ -27,6 +30,7 @@ async function getEffectiveSettings(sourceUrl: string, query: any): Promise<Effe
         if (storedSettingsRecord) {
             effectiveSettings = storedSettingsRecord.settings;
         } else {
+            isNewUrl = true;
             effectiveSettings = {
                 minTextLength: query.minTextLength && Number(query.minTextLength) > 0 ? parseInt(query.minTextLength) : 25,
                 maxTextLength: query.maxTextLength && Number(query.maxTextLength) > 0 ? parseInt(query.maxTextLength) : 4000,
@@ -41,6 +45,7 @@ async function getEffectiveSettings(sourceUrl: string, query: any): Promise<Effe
             };
         }
     } catch (error) {
+        isNewUrl = true;
         effectiveSettings = {
             minTextLength: query.minTextLength && Number(query.minTextLength) > 0 ? parseInt(query.minTextLength) : 25,
             maxTextLength: query.maxTextLength && Number(query.maxTextLength) > 0 ? parseInt(query.maxTextLength) : 4000,
@@ -54,6 +59,18 @@ async function getEffectiveSettings(sourceUrl: string, query: any): Promise<Effe
             iterateIframes: query.iterateIframes ? parseBoolean(query.iterateIframes) : false
         };
     }
+    
+    // Automatically save unknown URLs with their default settings
+    if (isNewUrl) {
+        try {
+            await saveSettings(sourceUrl, effectiveSettings);
+            console.log(`Auto-saved settings for new URL: ${sourceUrl}`);
+        } catch (saveError) {
+            console.error(`Failed to auto-save settings for URL ${sourceUrl}:`, saveError);
+            // Continue with processing even if saving fails
+        }
+    }
+    
     return effectiveSettings;
 }
 
