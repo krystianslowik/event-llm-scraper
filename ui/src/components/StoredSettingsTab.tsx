@@ -459,7 +459,7 @@ export function StoredSettingsTab({}: StoredSettingsTabProps) {
                                     <div key={result.id} className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
                                         <div className="flex justify-between items-center mb-3">
                                             <div className="flex items-center gap-2">
-                                                <div className={`h-8 w-8 rounded-full ${getScoreColor(result.score_data.score)} flex items-center justify-center text-white font-medium`}>
+                                                <div className={`h-8 w-8 rounded-full ${getScoreColor(result.score_data.score)} flex items-center justify-center text-white font-medium text-xs`}>
                                                     {(result.score_data.score * 100).toFixed(0)}%
                                                 </div>
                                                 <div>
