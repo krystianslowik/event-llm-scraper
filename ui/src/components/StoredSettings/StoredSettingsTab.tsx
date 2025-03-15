@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { ChevronDown, ChevronUp, Plus } from 'lucide-react';
 import type { StoredSetting, ScoringResult } from './types';
 import { SettingPreview } from './SettingPreview';
@@ -17,6 +17,7 @@ export function StoredSettingsTab() {
   const [scoringExpandedIds, setScoringExpandedIds] = useState<Set<number>>(new Set());
   const [scoringResults, setScoringResults] = useState<{ [key: number]: ScoringResult[] }>({});
   const [newRecord, setNewRecord] = useState<StoredSetting | null>(null);
+  const [searchTerm, setSearchTerm] = useState<string>('');
 
   useEffect(() => {
     fetchSettings();
@@ -110,22 +111,38 @@ export function StoredSettingsTab() {
     setNewRecord(prev => {
       if (!prev) return null;
 
+      // Create a copy to work with
+      let updatedRecord = {...prev};
+      
       if (field === 'source_url') {
-        return {
+        updatedRecord = {
           ...prev,
           source_url: value
         };
       } else if (field.startsWith('settings.')) {
         const settingField = field.split('.')[1];
-        return {
+        updatedRecord = {
           ...prev,
           settings: {
             ...prev.settings,
             [settingField]: value
           }
         };
+      } else {
+        return prev;
       }
-      return prev;
+      
+      // Ensure customPrompt is always set
+      if (field === 'settings.customPrompt' && !value) {
+        updatedRecord.settings.customPrompt = DEFAULT_SETTINGS.customPrompt;
+      }
+      
+      // Always make sure customPrompt is set
+      if (!updatedRecord.settings.customPrompt) {
+        updatedRecord.settings.customPrompt = DEFAULT_SETTINGS.customPrompt;
+      }
+      
+      return updatedRecord;
     });
   };
 
@@ -154,25 +171,72 @@ export function StoredSettingsTab() {
   };
 
   const addNewSetting = () => {
+    // Hardcode the default prompt text directly
+    const hardcodedDefaultPrompt = `Please provide a concise summary of the following text. If no events, state "No events found.". Do not skip any event. Make sure all of them are taken from the text provided. No markdown. Response in German. DO NOT BE LAZY. THIS IS IMPORTANT.`;
+    
+    // Force the prompt to be the hardcoded value
     const newSetting: StoredSetting = {
       id: Date.now(), // Use timestamp as temporary ID
       source_url: '',
       settings: {
-        ...DEFAULT_SETTINGS,
-        customPrompt: DEFAULT_SETTINGS.customPrompt, // Explicitly set customPrompt
+        minTextLength: 25,
+        maxTextLength: 4000,
+        maxCombinedSize: 4000,
+        categorySet: "Familienleben, Aktivitäten, Veranstaltungen, Essen/Rezepte, Münsterland, Kultur/Lifestyle, Gesundheit, Reisen, Einkaufen, Gemeinschaft, Tipps & Ratgeber",
+        customPrompt: hardcodedDefaultPrompt, // Use hardcoded value
+        gptModel: "gpt-4o-mini",
+        showEventsWithoutLinks: false,
+        iterateIframes: false,
+        expectedEvents: 0,
       },
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
+    
+    // Log to verify the customPrompt is set
+    console.log("New setting created with hardcoded prompt:", newSetting.settings.customPrompt);
+    
     setNewRecord(newSetting);
   };
 
   const saveNewSetting = async () => {
     if (!newRecord) return;
+    
+    // Validate required fields
+    if (!newRecord.source_url.trim()) {
+      alert('Source URL is required');
+      return;
+    }
+    
+    // Create a copy to make sure customPrompt is set
+    const recordToSave = {
+      ...newRecord,
+      settings: {
+        ...newRecord.settings,
+        // If customPrompt is somehow empty, use the default
+        customPrompt: newRecord.settings.customPrompt || DEFAULT_SETTINGS.customPrompt
+      }
+    };
+    
     try {
-      const saved = await apiSaveSetting(newRecord);
+      console.log("Saving setting with prompt:", recordToSave.settings.customPrompt);
+      const saved = await apiSaveSetting(recordToSave);
       setSettingsList(prev => [...prev, saved]);
       setNewRecord(null);
+      
+      // Show confirmation toast or message
+      const confirmationEl = document.createElement('div');
+      confirmationEl.className = 'fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded-md shadow-lg z-50';
+      confirmationEl.innerText = 'Settings saved successfully!';
+      document.body.appendChild(confirmationEl);
+      
+      // Remove after 3 seconds
+      setTimeout(() => {
+        if (document.body.contains(confirmationEl)) {
+          document.body.removeChild(confirmationEl);
+        }
+      }, 3000);
+      
     } catch (err: any) {
       alert(err.message || 'Error saving new setting');
     }
@@ -250,28 +314,107 @@ export function StoredSettingsTab() {
     </div>
   );
 
+  // Filter settings based on search
+  const filteredSettings = useMemo(() => {
+    if (!searchTerm.trim()) return settingsList;
+    
+    const lowercaseSearch = searchTerm.toLowerCase();
+    return settingsList.filter(setting => 
+      setting.source_url.toLowerCase().includes(lowercaseSearch) ||
+      setting.settings.categorySet.toLowerCase().includes(lowercaseSearch) ||
+      setting.settings.gptModel.toLowerCase().includes(lowercaseSearch)
+    );
+  }, [settingsList, searchTerm]);
+
   return (
     <div className="p-4">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-bold">Stored Settings</h2>
-        <button
-          onClick={addNewSetting}
-          className="flex items-center p-2 text-green-600 hover:bg-green-100 rounded-full focus:outline-none focus:ring-2 focus:ring-green-400 transition-colors"
-        >
-          <Plus size={20} />
-        </button>
-      </div>
-      {loading ? (
-        <p className="text-center text-gray-600">Loading stored settings…</p>
-      ) : error ? (
-        <p className="text-center text-red-600">Error: {error}</p>
-      ) : settingsList.length === 0 && !newRecord ? (
-        <p className="text-center text-gray-600">No stored settings found.</p>
-      ) : (
-        <div className="space-y-6">
-          {settingsList.map((setting) => renderSettingRow(setting))}
+      <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-800">Source Settings</h2>
+            <p className="text-gray-500 text-sm mt-1">
+              Configure and manage settings for each source URL
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search settings..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 pr-4 py-2 border rounded-md text-sm focus:ring-blue-500 focus:border-blue-500 w-full md:w-64"
+              />
+              <div className="absolute left-3 top-2.5 text-gray-400">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+            </div>
+            <button
+              onClick={addNewSetting}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 transition-colors"
+            >
+              <Plus size={18} />
+              <span className="hidden md:inline">Add New</span>
+            </button>
+            {/* Debug button to show default settings */}
+            <button
+              onClick={() => {
+                console.log("DEFAULT_SETTINGS:", DEFAULT_SETTINGS);
+                alert(`Default prompt is: ${DEFAULT_SETTINGS.customPrompt ? DEFAULT_SETTINGS.customPrompt.substring(0, 50) + "..." : "MISSING!"}`);
+              }}
+              className="px-2 py-1 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 text-xs ml-2"
+            >
+              Debug
+            </button>
+          </div>
         </div>
-      )}
+        
+        {loading ? (
+          <div className="flex justify-center items-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+          </div>
+        ) : error ? (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
+            <p className="flex items-center gap-2 font-medium">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+              Error loading settings
+            </p>
+            <p className="mt-1 text-sm">{error}</p>
+          </div>
+        ) : filteredSettings.length === 0 && !newRecord ? (
+          searchTerm ? (
+            <div className="text-center py-12 border border-gray-100 rounded-md bg-gray-50">
+              <p className="text-gray-500">No settings match your search</p>
+              <button 
+                onClick={() => setSearchTerm('')}
+                className="mt-2 text-blue-600 hover:text-blue-800 text-sm"
+              >
+                Clear search
+              </button>
+            </div>
+          ) : (
+            <div className="text-center py-12 border border-gray-100 rounded-md bg-gray-50">
+              <p className="text-gray-500 mb-4">No stored settings found</p>
+              <button
+                onClick={addNewSetting}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+              >
+                <Plus size={18} />
+                Add Your First Setting
+              </button>
+            </div>
+          )
+        ) : (
+          <div className="space-y-6">
+            {filteredSettings.map((setting) => renderSettingRow(setting))}
+          </div>
+        )}
+      </div>
+      
       {newRecord && (
         <NewSettingForm
           setting={newRecord}

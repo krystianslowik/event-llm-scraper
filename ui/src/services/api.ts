@@ -52,6 +52,16 @@ export async function saveSetting(setting: StoredSetting): Promise<StoredSetting
     return setting;
   }
 
+  // Ensure customPrompt is set with default if missing
+  const { DEFAULT_SETTINGS } = await import('../config/settings');
+  
+  const settingsToSave = {
+    ...setting.settings,
+    customPrompt: setting.settings.customPrompt || DEFAULT_SETTINGS.customPrompt
+  };
+  
+  console.log("API saving with prompt:", settingsToSave.customPrompt);
+
   const response = await fetch(API_CONFIG.settings.url, {
     method: 'POST',
     headers: {
@@ -59,7 +69,7 @@ export async function saveSetting(setting: StoredSetting): Promise<StoredSetting
     },
     body: JSON.stringify({
       sourceUrl: setting.source_url,
-      settings: setting.settings,
+      settings: settingsToSave,
       expectedEvents: setting.settings.expectedEvents
     })
   });
